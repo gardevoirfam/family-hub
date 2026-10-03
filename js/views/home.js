@@ -1,0 +1,176 @@
+import { esc, avatar, icons } from '../ui.js';
+import { fmt, greeting, daysBetween, addDays, inWindow } from '../dates.js';
+import { taskView } from '../points.js';
+
+const MAX_LATER = 5;
+
+function rangeLabel(a, b) {
+  const sameMonth = a.getMonth() === b.getMonth();
+  return `${fmt.shortDate(a)} to ${sameMonth ? b.getDate() : fmt.shortDate(b)}`;
+}
+
+function groupEvents(events, today) {
+  const groups = [
+    { key: 'today', day: 'Today', date: fmt.dayDate(today), items: [] },
+    { key: 'tomorrow', day: 'Tomorrow', date: fmt.dayDate(addDays(today, 1)), items: [] },
+    { key: 'week', day: 'This week', date: rangeLabel(addDays(today, 2), addDays(today, 6)), items: [] },
+    { key: 'later', day: 'Later', date: '', items: [] }
+  ];
+  for (const e of events) {
+    if (!e.start) continue;
+    const diff = daysBetween(today, e.start);
+    if (diff < 0) continue;
+    let g, time;
+    if (diff === 0 || diff === 1) {
+      g = groups[diff];
+      time = e.allDay ? 'All day' : fmt.time(e.start);
+    } else if (diff < 7) {
+      g = groups[2];
+      time = e.allDay ? fmt.weekday(e.start) : `${fmt.weekday(e.start)} ${fmt.time(e.start)}`;
+    } else {
+      g = groups[3];
+      time = fmt.shortDate(e.start);
+    }
+    g.items.push({ ...e, time });
+  }
+  groups[3].items = groups[3].items.slice(0, MAX_LATER);
+  return groups.filter(g => g.items.length);
+}
+
+function chipsFor(event, peopleById) {
+  const ids = event.who.filter(id => id !== 'all' && peopleById.has(id));
+  if (!ids.length) return [{ name: 'Everyone', color: 'var(--ink)' }];
+  return ids.map(id => peopleById.get(id));
+}
+
+// Tasks that count toward today's progress: anything due by tonight that is
+// still open, plus anything due today or finished today, plus tasks whose
+// start-to-due window covers today, plus any-time tasks that can be done now
+// or were done today. Expects tasks from taskView.
+export function todaysTasks(tasks, dayStart, dayEnd) {
+  return tasks.filter(t => {
+    if (!t.due) return !t.done || (t.doneAt && t.doneAt >= dayStart);
+    return inWindow(t, dayStart, dayEnd) || (t.due < dayEnd &&
+      (!t.done || t.due >= dayStart || (t.doneAt && t.doneAt >= dayStart)));
+  });
+}
+
+const noteIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>';
+
+// An event with notes is a button that opens them in place.
+function eventRow(e, peopleById, openEvent) {
+  const open = e.notes && openEvent === e.id;
+  const body = `
+    <div class="event-time">${esc(e.time)}</div>
+    <div class="event-body">
+      <div class="event-title">${esc(e.title)}</div>
+      ${e.place ? `<div class="event-place">${esc(e.place)}</div>` : ''}
+      <div class="chips">
+        ${chipsFor(e, peopleById).map(p => `<span class="chip"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</span>`).join('')}
+        ${e.notes && !open ? `<span class="chip note-hint">${noteIcon}Notes</span>` : ''}
+      </div>
+      ${open ? `<div class="event-notes">${esc(e.notes)}</div>` : ''}
+    </div>`;
+  if (!e.notes) return `<div class="event">${body}</div>`;
+  return `<button type="button" class="event has-notes ${open ? 'open' : ''}" data-action="toggle-event" data-id="${esc(e.id)}"
+    aria-expanded="${open ? 'true' : 'false'}">${body}</button>`;
+}
+
+function renderEvents(groups, peopleById, openEvent) {
+  if (!groups.length) return '<div class="empty">Nothing on the calendar yet.</div>';
+  return groups.map(g => `
+    <div class="day">
+      <div class="day-head"><b>${esc(g.day)}</b>${g.date ? `<span>${esc(g.date)}</span>` : ''}</div>
+      ${g.items.map(e => eventRow(e, peopleById, openEvent)).join('')}
+    </div>`).join('');
+}
+
+const MAX_JOBS = 4;
+
+// Today's tasks for one person, open ones first, with shared tasks naming the
+// other people on them.
+function jobList(mine, p, peopleById, dayStart) {
+  if (!mine.length) return '';
+  const sorted = [...mine].sort((a, b) => (a.done - b.done) || ((a.due || Infinity) - (b.due || Infinity)));
+  const shown = sorted.slice(0, MAX_JOBS);
+  const more = sorted.length - shown.length;
+  return `
+    <ul class="member-jobs">
+      ${shown.map(t => {
+        const others = t.personIds.filter(id => id !== p.id).map(id => peopleById.get(id)?.name).filter(Boolean);
+        return `<li class="${t.done ? 'done' : ''}">
+          <span class="job-dot" style="${t.done ? `background:${p.color};border-color:${p.color}` : `border-color:${p.color}`}"></span>
+          <span class="job-title">${esc(t.title)}${others.length ? ` <span class="job-with">with ${esc(others.join(' and '))}</span>` : ''}</span>
+          <span class="job-time ${!t.done && !t.pending && t.due && t.due < dayStart ? 'late' : ''}">${t.done ? 'Done' : t.pending ? 'Waiting for OK' : !t.due ? 'Any time' : t.due < dayStart ? 'Late' : daysBetween(dayStart, t.due) > 0 ? `By ${esc(fmt.weekday(t.due))}` : esc(fmt.time(t.due))}</span>
+        </li>`;
+      }).join('')}
+      ${more > 0 ? `<li class="job-more">+${more} more</li>` : ''}
+    </ul>`;
+}
+
+function renderJobs(people, tasks, peopleById, dayStart) {
+  if (!people.length) {
+    return '<div class="empty">No one is set up yet. Family members appear here once the hub has its data.</div>';
+  }
+  return people.map(p => {
+    const mine = tasks.filter(t => t.personIds.includes(p.id));
+    const done = mine.filter(t => t.done).length;
+    const left = mine.length - done;
+    const pct = mine.length ? Math.round(done * 100 / mine.length) : 0;
+    const leftText = !mine.length ? 'Nothing today' : left === 0 ? 'All done!' : `${left} to go`;
+    return `
+      <a class="member" href="#/person/${encodeURIComponent(p.id)}">
+        ${avatar(p, 48)}
+        <div class="member-body">
+          <div class="member-top"><b>${esc(p.name)}</b><span>${leftText}</span></div>
+          <div class="bar"><div style="width:${pct}%;background:${p.color}"></div></div>
+          ${jobList(mine, p, peopleById, dayStart)}
+          <div class="member-foot"><span>${done} of ${mine.length} done</span><b>${p.points} pts</b></div>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+// The weekly digest from the Claude routine, full width under the two cards.
+function renderDigest(digest) {
+  if (!digest || !digest.sections.length) return '';
+  const updated = digest.updatedAt ? `Updated ${fmt.weekday(digest.updatedAt)} ${fmt.shortDate(digest.updatedAt)}` : '';
+  return `
+    <section class="card digest" aria-labelledby="digest-head">
+      <div class="digest-head">
+        <h2 id="digest-head">${esc(digest.title || 'This week')}</h2>
+        ${updated ? `<span class="note">${esc(updated)}</span>` : ''}
+      </div>
+      <div class="digest-grid">
+        ${digest.sections.map(s => `
+          <div class="digest-section">
+            ${s.heading ? `<h3>${esc(s.heading)}</h3>` : ''}
+            <ul>
+              ${s.items.map(i => `<li>${i.when ? `<b>${esc(i.when)}</b>` : ''}<span>${esc(i.text)}</span></li>`).join('')}
+            </ul>
+          </div>`).join('')}
+      </div>
+    </section>`;
+}
+
+export function renderHome({ now, today, dayStart, dayEnd, people, events, tasks, loading, digest, openEvent }) {
+  const peopleById = new Map(people.map(p => [p.id, p]));
+  const todays = todaysTasks(tasks.map(t => taskView(t, now)), dayStart, dayEnd);
+  return `
+    <header class="page-head">
+      <div class="eyebrow">${esc(fmt.longDate(today))}</div>
+      <h1>${greeting(now)}, family</h1>
+    </header>
+    <div class="home-grid">
+      <section class="card events" aria-labelledby="coming-up">
+        <h2 id="coming-up">${icons.calendar}Coming up</h2>
+        ${loading.events ? '<div class="empty">Loading…</div>' : renderEvents(groupEvents(events, today), peopleById, openEvent)}
+      </section>
+      <section class="card jobs" aria-labelledby="todays-jobs">
+        <h2 id="todays-jobs">Today's tasks</h2>
+        ${loading.people || loading.tasks ? '<div class="empty">Loading…</div>' : renderJobs(people, todays, peopleById, dayStart)}
+        ${people.length ? '<p class="note">Tap a name to see their list.</p>' : ''}
+      </section>
+    </div>
+    ${renderDigest(digest)}`;
+}

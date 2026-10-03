@@ -1,0 +1,125 @@
+import { esc, avatar, icons } from '../ui.js';
+
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'];
+
+function pinPad({ pin, pinError, hasPin }) {
+  if (!hasPin) {
+    return `
+      <div class="pin">
+        <div class="pin-icon">${icons.lock}</div>
+        <h2>Parents only</h2>
+        <p class="note" style="max-width:400px;font-size:16px">No parent PIN has been set yet. Ask Claude to set one.</p>
+        <button type="button" class="btn-outline" data-action="close-parents">Close</button>
+      </div>`;
+  }
+  return `
+    <div class="pin">
+      <div class="pin-icon">${icons.lock}</div>
+      <h2>Parents only</h2>
+      <p class="note" style="max-width:380px;font-size:16px">Enter the PIN to change points or approve rewards.</p>
+      <div class="pin-dots" aria-label="${pin.length} of 4 digits entered">
+        ${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? 'on' : ''}"></span>`).join('')}
+      </div>
+      ${pinError ? `<div class="form-error" role="alert">That PIN didn't match. Try again.</div>` : ''}
+      <div class="keys">
+        ${KEYS.map(k => `<button type="button" class="key ${k.length > 1 ? 'word' : ''}" data-action="pin-key" data-id="${k}">${k}</button>`).join('')}
+      </div>
+      <button type="button" class="btn-outline" data-action="close-parents">Cancel</button>
+    </div>`;
+}
+
+// Pending ticks on habits that need a grown-up's OK, oldest first.
+function pendingHabitTicks(habits) {
+  const list = [];
+  for (const h of habits) {
+    for (const [day, v] of Object.entries(h.days)) if (v === 'pending') list.push({ habit: h, day });
+  }
+  return list.sort((a, b) => a.day.localeCompare(b.day));
+}
+
+function dayName(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function controls({ people, claims, approvalHabits = [], pendingTasks = [], log }) {
+  const byId = new Map(people.map(p => [p.id, p]));
+  const pending = claims.filter(c => c.status === 'pending');
+  const ticks = pendingHabitTicks(approvalHabits);
+  return `
+    <div class="stack" style="gap:22px">
+      <div class="dialog-head">
+        <h2>Parent controls</h2>
+        <button type="button" class="btn-dark" data-action="close-parents">Lock and close</button>
+      </div>
+      <section class="stack" style="gap:10px">
+        <h3>Adjust points</h3>
+        ${people.map(p => `
+          <div class="adjust">
+            ${avatar(p, 40)}
+            <span class="adjust-name">${esc(p.name)}</span>
+            <span class="adjust-pts">${p.points} pts</span>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="-5" aria-label="Take 5 points from ${esc(p.name)}">−5</button>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="5" aria-label="Give ${esc(p.name)} 5 points">+5</button>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="10" aria-label="Give ${esc(p.name)} 10 points">+10</button>
+          </div>`).join('') || '<p class="note">No one is set up yet.</p>'}
+      </section>
+      ${pendingTasks.length ? `
+        <section class="stack" style="gap:10px">
+          <h3>Tasks waiting for OK</h3>
+          ${[...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt).map(t => {
+            const who = t.personIds.map(id => byId.get(id)).filter(Boolean);
+            const first = who[0] || { name: '?', color: 'var(--muted)' };
+            return `
+              <div class="adjust">
+                ${avatar(first, 40)}
+                <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${esc(who.map(p => p.name).join(' and ') || '?')} · +${t.points}${who.length > 1 ? ' each' : ''}</span></div>
+                <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}" data-status="denied">Not done</button>
+                <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}" data-status="approved">Approve</button>
+              </div>`;
+          }).join('')}
+        </section>` : ''}
+      ${ticks.length ? `
+        <section class="stack" style="gap:10px">
+          <h3>Habits waiting for OK</h3>
+          ${ticks.map(({ habit: h, day }) => {
+            const p = byId.get(h.personId) || { name: '?', color: 'var(--muted)' };
+            const pts = Number.isInteger(h.points) ? h.points : 2;
+            return `
+              <div class="adjust">
+                ${avatar(p, 40)}
+                <div class="claim-body" style="flex:1"><b>${esc(h.name)}</b><span>${esc(p.name)} · ${esc(dayName(day))} · +${pts}</span></div>
+                <button type="button" class="btn-outline small" data-action="decide-habit" data-id="${esc(h.id)}" data-day="${esc(day)}" data-status="denied">Not done</button>
+                <button type="button" class="btn-approve" data-action="decide-habit" data-id="${esc(h.id)}" data-day="${esc(day)}" data-status="approved">Approve</button>
+              </div>`;
+          }).join('')}
+        </section>` : ''}
+      <section class="stack" style="gap:10px">
+        <h3>Rewards waiting for OK</h3>
+        ${!pending.length ? '<p class="note" style="font-size:15px">Nothing waiting right now.</p>' : pending.map(c => {
+          const p = byId.get(c.personId) || { name: '?', color: 'var(--muted)' };
+          return `
+            <div class="adjust">
+              ${avatar(p, 40)}
+              <div class="claim-body" style="flex:1"><b>${esc(c.title)}</b><span>${esc(p.name)} spent ${c.cost} points</span></div>
+              <button type="button" class="btn-outline small" data-action="decide" data-id="${esc(c.id)}" data-status="denied">Not now</button>
+              <button type="button" class="btn-approve" data-action="decide" data-id="${esc(c.id)}" data-status="approved">Approve</button>
+            </div>`;
+        }).join('')}
+      </section>
+      ${log.length ? `
+        <section class="stack" style="gap:6px">
+          <h3>Changes this visit</h3>
+          ${log.map(l => `<div class="note" style="font-size:15px;color:var(--ink-2)">${esc(l)}</div>`).join('')}
+        </section>` : ''}
+    </div>`;
+}
+
+export function renderParents(s) {
+  return `
+    <div class="scrim">
+      <div class="dialog" role="dialog" aria-modal="true" aria-label="Parent controls">
+        ${s.unlocked ? controls(s) : pinPad(s)}
+      </div>
+    </div>`;
+}
