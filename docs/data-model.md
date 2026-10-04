@@ -75,6 +75,7 @@ Written with `tools/hubtask.py rewards set FILE` (a JSON list of these, each wit
 | `unitMinutes` | int | Optional, `perUnit` only: minutes in one unit, so totals read "1 hour 15 minutes". |
 | `maxQty` | int    | Optional, `perUnit` only: most units in one claim (default 20). |
 | `order`  | int    | Optional sort order on the Rewards page (then by cost). |
+| `weekly` | bool   | Optional. `true` for the 4 rotating "This week's rewards" slots, shown in their own group at the top of the Rewards page. The weekly reward routine replaces these every Monday and leaves the others alone. |
 | `active` | bool   | Hidden when `false`. |
 
 - **fixed**: claiming spends `cost` right away; declining gives it back.
