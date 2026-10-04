@@ -148,7 +148,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, loading, n
     : `${done} of ${due.length} tasks done today`;
   const streak = habitStreak(habits, today);
   const groups = [
-    { label: 'Late', note: 'Still worth half points', cls: 'late', list: sections.late },
+    { label: 'Late', note: 'No points now, but still worth doing', cls: 'late', list: sections.late },
     { label: 'Today', note: '', cls: '', list: sections.today },
     { label: 'Coming up', note: '', cls: '', list: sections.later },
     { label: 'Done for now', note: 'Back after a rest', cls: '', list: sections.resting }
