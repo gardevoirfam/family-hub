@@ -1,7 +1,7 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, greeting, daysBetween, addDays, inWindow } from '../dates.js';
 import { taskView } from '../points.js';
-import { describe } from '../weather.js';
+import { describe, outfit } from '../weather.js';
 
 const MAX_LATER = 5;
 
@@ -199,7 +199,21 @@ function renderWeather(weather, now, today) {
           </div>`;
         }).join('')}
       </div>
+      ${renderOutfit(outfit(weather, now))}
     </section>`;
+}
+
+function renderOutfit(o) {
+  if (!o) return '';
+  const range = o.low === o.high ? `${o.low}°` : `${o.low}° to ${o.high}°`;
+  const extra = o.snow && o.rain ? ', rain and snow' : o.snow ? ', snow' : o.rain ? ', rain' : '';
+  return `
+    <div class="outfit">
+      <div class="outfit-head"><b>What to wear ${esc(o.when.toLowerCase())}</b><span>${esc(o.summary)}, feels like ${esc(range)}${esc(extra)}</span></div>
+      <ul class="outfit-items">
+        ${o.items.map(i => `<li><span aria-hidden="true">${i.icon}</span>${esc(i.text)}</li>`).join('')}
+      </ul>
+    </div>`;
 }
 
 // The weekly digest from the Claude routine, full width under the two cards.
