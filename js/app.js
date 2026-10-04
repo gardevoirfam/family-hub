@@ -1,11 +1,11 @@
 import { esc, avatar, colorsFor, icons } from './ui.js';
-import { startOfDay, addDays, dayKey } from './dates.js';
+import { startOfDay, addDays, dayKey, fmt } from './dates.js';
 import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 
 const root = document.getElementById('app');
@@ -333,8 +333,14 @@ async function handleAction(el) {
     // A shared task pays everyone on it.
     const people = task.personIds.map(personById).filter(Boolean);
     if (!people.length) people.push(person);
+    // A task can't be ticked before its day (or window) starts.
+    const status = taskState(task);
+    if (status === 'later') {
+      showToast(`${task.title} can be done from ${fmt.weekday(opensAt(task))}`);
+      return render();
+    }
     // Ticking an open task does it; ticking a done or waiting one undoes that.
-    const change = taskChange(task, people, taskState(task) === 'open');
+    const change = taskChange(task, people, status === 'open');
     const names = people.map(p => p.name).join(' and ');
     if (change.pending) showToast(`${task.title}: waiting for a grown-up to OK it`);
     else if (change.delta > 0) showToast(`Nice work, ${names}! +${change.delta} ${change.delta === 1 ? 'point' : 'points'}${people.length > 1 ? ' each' : ''}`);
