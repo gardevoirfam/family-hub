@@ -92,7 +92,7 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
         <section class="card side">
           <h2>How points work</h2>
           <div class="kv"><span>Task done on time</span><b>Full points</b></div>
-          <div class="kv"><span>Task done late</span><b>Half points</b></div>
+          <div class="kv"><span>Task done late</span><b>No points</b></div>
           <div class="kv"><span>Habit ticked</span><b>Its points</b></div>
           <div class="kv"><span>Habit's weekly goal met</span><b>Its bonus</b></div>
         </section>

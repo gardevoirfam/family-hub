@@ -27,7 +27,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `title`    | string    | |
 | `start`    | timestamp | Optional. When the job opens, for a job with a window such as Friday to Sunday. It shows under Today for every day of the window. |
 | `due`      | timestamp | When the task is due (the end of the window). On time means done before this. Leave it out for an any-time or repeating task (full points whenever it's done). |
-| `points`   | int       | Full value. Late jobs are worth half. |
+| `points`   | int       | Full value. Late jobs are worth 0. |
 | `done`     | bool      | **Must be set** (use `false` for new tasks); the home page queries on it. The iPad may change it. |
 | `doneAt`   | timestamp | Set when ticked done, `null` otherwise. The iPad may change it. |
 | `cooldownDays` | number | Optional. Makes a **repeating** task: it has no `due`, can be done any time, and after each completion it rests for this many days (fractions allowed) before it can be done again. One document is reused; every completion is in `pointsLog`. |

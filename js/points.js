@@ -1,4 +1,4 @@
-// Point rules from the Rewards page: full points on time, half points late,
+// Point rules from the Rewards page: full points on time, no points late,
 // each habit's own points per tick (2 if not set), plus the habit's own bonus
 // (if any) the moment it meets its weekly goal (Monday to Sunday).
 import { startOfDay, addDays, dayKey } from './dates.js';
@@ -70,8 +70,11 @@ function allGoalsMet(habits, monday) {
 
 // What a job is worth if finished at `at`.
 export function taskValue(task, at = new Date()) {
-  const late = task.due && at > task.due;
-  return late ? Math.floor(task.points / 2) : task.points;
+  return isLate(task, at) ? 0 : task.points;
+}
+
+function isLate(task, at) {
+  return !!task.due && at > task.due;
 }
 
 // Weeks in a row (ending this week, or last week if this week's goals aren't
@@ -136,7 +139,7 @@ export function taskChange(task, people, done, now = new Date()) {
 function pointsForTask(task, people, done, at, doneAt) {
   // Unticking takes back what ticking gave, judged by when it was ticked.
   const value = taskValue(task, at);
-  const reason = `${task.title} (${done ? (value === task.points ? 'on time' : 'late') : 'unticked'})`;
+  const reason = `${task.title} (${done ? (isLate(task, at) ? 'late' : 'on time') : 'unticked'})`;
   const changes = people.map(person => {
     const delta = done ? value : -Math.min(value, person.points);
     return { person, delta };
