@@ -280,7 +280,7 @@ async function handleAction(el) {
     const change = adjustChange(person, Number(el.dataset.delta));
     if (!change.delta) return;
     const sign = change.delta > 0 ? '+' : '−';
-    state.parents.log = [`${person.name}: ${sign}${Math.abs(change.delta)} points (now ${change.person.points})`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${person.name}: ${sign}${Math.abs(change.delta)} ${Math.abs(change.delta) === 1 ? "point" : "points"} (now ${change.person.points})`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if ((action === 'late-task-edit' || action === 'late-task-full' || action === 'late-task-none') && state.parents.unlocked) {
