@@ -205,6 +205,7 @@ export const source = {
           unitMinutes: Number(x.unitMinutes) || 0,
           maxQty: Number(x.maxQty) || 0,
           order: Number.isFinite(x.order) ? x.order : 999,
+          weekly: x.weekly === true,
           active: x.active !== false
         };
       }));

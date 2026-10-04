@@ -76,7 +76,11 @@ const rewards = [
   { id: 'r3', title: 'Stay up 30 minutes late', detail: 'Friday or Saturday night.', cost: 100, active: true },
   { id: 'r4', title: 'Choose movie night', detail: 'You pick the movie and the snack.', cost: 120, active: true },
   { id: 'r5', title: '$5 allowance bonus', detail: 'Added to your next allowance.', cost: 150, active: true },
-  { id: 'r6', title: 'Ice cream trip', detail: 'A weekend trip for the whole family.', cost: 200, active: true }
+  { id: 'r6', title: 'Ice cream trip', detail: 'A weekend trip for the whole family.', cost: 200, active: true },
+  { id: 'w1', title: 'Pancake breakfast', detail: 'You pick the toppings on Saturday.', cost: 30, weekly: true, active: true },
+  { id: 'w2', title: 'Board game night', detail: 'You choose the game, everyone plays.', cost: 25, weekly: true, active: true },
+  { id: 'w3', title: 'Build a blanket fort', detail: 'In the living room, up for one night.', cost: 35, weekly: true, active: true },
+  { id: 'w4', title: 'Bake cookies with a parent', detail: 'You pick the kind.', cost: 40, weekly: true, active: true }
 ];
 
 const claims = [

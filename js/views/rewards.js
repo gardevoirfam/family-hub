@@ -39,7 +39,7 @@ function card(r, who, qty) {
     button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : `Need ${r.cost - who.points} more`);
   }
   return `
-    <div class="reward">
+    <div class="reward${r.weekly ? ' weekly' : ''}">
       <div class="reward-cost">${icons.star}${cost}</div>
       <div class="reward-title">${esc(r.title)}</div>
       <div class="reward-detail">${esc(r.detail)}</div>
@@ -51,7 +51,7 @@ function card(r, who, qty) {
 export function renderRewards({ people, rewards, claims, claimer, claimQty = {}, loading }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const who = byId.get(claimer) || people[0];
-  const list = rewards.filter(r => r.active).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.cost - b.cost || a.title.localeCompare(b.title));
+  const sorted = rewards.filter(r => r.active).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.cost - b.cost || a.title.localeCompare(b.title));
   const recent = claims.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
 
   const pickers = people.map(p => {
@@ -64,9 +64,15 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
       </button>`;
   }).join('');
 
-  const cards = !list.length
+  const weekly = sorted.filter(r => r.weekly);
+  const always = sorted.filter(r => !r.weekly);
+  const cardsOf = list => list.map(r => card(r, who, claimQty[r.id])).join('');
+  const heading = (text, note) => `<h2 class="reward-group">${text}${note ? `<span>${note}</span>` : ''}</h2>`;
+  const cards = !sorted.length
     ? '<div class="empty" style="grid-column:1/-1">No rewards yet.</div>'
-    : list.map(r => card(r, who, claimQty[r.id])).join('');
+    : (weekly.length
+      ? heading("This week's rewards", 'New ones every Monday') + cardsOf(weekly) + (always.length ? heading('Every week') + cardsOf(always) : '')
+      : cardsOf(always));
 
   const recentHtml = !recent.length ? '<p class="note">No claims yet.</p>' : recent.map(c => {
     const p = byId.get(c.personId) || { name: '?', color: 'var(--muted)' };
