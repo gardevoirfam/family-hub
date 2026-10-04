@@ -177,9 +177,8 @@ function controls({ people, claims, approvalHabits = [], pendingTasks = [], log,
             ${avatar(p, 40)}
             <span class="adjust-name">${esc(p.name)}</span>
             <span class="adjust-pts">${p.points} pts</span>
-            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="-5" aria-label="Take 5 points from ${esc(p.name)}">−5</button>
-            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="5" aria-label="Give ${esc(p.name)} 5 points">+5</button>
-            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="10" aria-label="Give ${esc(p.name)} 10 points">+10</button>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="-1" aria-label="Take 1 point from ${esc(p.name)}">−1</button>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="1" aria-label="Give ${esc(p.name)} 1 point">+1</button>
           </div>`).join('') || '<p class="note">No one is set up yet.</p>'}
       </section>
       ${pendingTasks.length ? `
