@@ -1,6 +1,7 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, greeting, daysBetween, addDays, inWindow } from '../dates.js';
 import { taskView } from '../points.js';
+import { describe } from '../weather.js';
 
 const MAX_LATER = 5;
 
@@ -133,6 +134,74 @@ function renderJobs(people, tasks, peopleById, dayStart) {
   }).join('');
 }
 
+const MAX_SPELLS = 3;
+
+function hourLabel(d) {
+  if (d.getHours() === 0 && d.getMinutes() === 0) return 'midnight';
+  return d.toLocaleTimeString('en-US', { hour: 'numeric' });
+}
+
+function dayWord(d, today) {
+  const diff = daysBetween(today, d);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return d.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+// "Today 2 PM to 6 PM", "Now to 4 PM" or "Tue 10 PM to Wed 3 AM".
+function spellWhen(s, now, today) {
+  // An end at midnight belongs to the day before it.
+  const endDay = new Date(s.end.getTime() - 1);
+  const sameDay = daysBetween(s.start, endDay) === 0;
+  const from = s.start <= now ? 'Now' : `${dayWord(s.start, today)} ${hourLabel(s.start)}`;
+  const to = sameDay || s.start <= now && daysBetween(today, endDay) === 0
+    ? hourLabel(s.end)
+    : `${dayWord(endDay, today)} ${hourLabel(s.end)}`;
+  return `${from} to ${to}`;
+}
+
+const kindIcon = kind => (kind === 'Snow' ? '🌨️' : kind === 'Storms' ? '⛈️' : kind === 'Rain and snow' ? '🌨️' : '🌧️');
+
+// Current weather, the rain and snow coming in the next few days, and a week strip.
+function renderWeather(weather, now, today) {
+  if (!weather) return '';
+  const cur = describe(weather.now.code);
+  const todayFc = weather.days.find(d => daysBetween(today, d.date) === 0);
+  const spells = weather.spells.slice(0, MAX_SPELLS);
+  const week = weather.days.filter(d => daysBetween(today, d.date) >= 0);
+  return `
+    <section class="card weather" aria-labelledby="weather-head">
+      <div class="weather-now">
+        <span class="weather-icon" aria-hidden="true">${cur.icon}</span>
+        <div>
+          <h2 id="weather-head" class="weather-temp">${weather.now.temp}°</h2>
+          <div class="weather-text">${esc(cur.text)}${cur.text ? ' in ' : ''}${esc(weather.place)}</div>
+          <div class="note">${todayFc ? `High ${todayFc.high}° · Low ${todayFc.low}° · ` : ''}Feels like ${weather.now.feels}°</div>
+        </div>
+      </div>
+      <div class="weather-wet">
+        ${spells.length ? spells.map(s => `
+          <div class="wet-row">
+            <span class="wet-icon" aria-hidden="true">${kindIcon(s.kind)}</span>
+            <div><b>${esc(s.kind)}</b> <span class="wet-chance">${s.chance}%</span><div class="wet-when">${esc(spellWhen(s, now, today))}</div></div>
+          </div>`).join('')
+        : '<div class="wet-row dry"><span class="wet-icon" aria-hidden="true">🌂</span><div>No rain or snow in the next 3 days</div></div>'}
+      </div>
+      <div class="weather-week">
+        ${week.map(d => {
+          const c = describe(d.code);
+          const wet = d.kind && d.chance >= 30;
+          return `<div class="wday ${wet ? 'wet' : ''}" title="${esc(c.text)}">
+            <b>${daysBetween(today, d.date) === 0 ? 'Today' : esc(fmt.weekday(d.date))}</b>
+            <span class="wday-icon" aria-label="${esc(c.text)}">${c.icon}</span>
+            <span class="wday-temp">${d.high}° <span>${d.low}°</span></span>
+            <span class="wday-wet">${wet ? `${esc(d.kind === 'Snow' ? 'Snow' : d.kind === 'Rain and snow' ? 'Mix' : d.kind === 'Storms' ? 'Storms' : 'Rain')} ${d.chance}%` : '&nbsp;'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>`;
+}
+
 // The weekly digest from the Claude routine, full width under the two cards.
 function renderDigest(digest) {
   if (!digest || !digest.sections.length) return '';
@@ -155,7 +224,7 @@ function renderDigest(digest) {
     </section>`;
 }
 
-export function renderHome({ now, today, dayStart, dayEnd, people, events, tasks, loading, digest, openEvent }) {
+export function renderHome({ now, today, dayStart, dayEnd, people, events, tasks, loading, digest, openEvent, weather }) {
   const peopleById = new Map(people.map(p => [p.id, p]));
   const todays = todaysTasks(tasks.map(t => taskView(t, now)), dayStart, dayEnd);
   return `
@@ -163,6 +232,7 @@ export function renderHome({ now, today, dayStart, dayEnd, people, events, tasks
       <div class="eyebrow">${esc(fmt.longDate(today))}</div>
       <h1>${greeting(now)}, family</h1>
     </header>
+    ${renderWeather(weather, now, today)}
     <div class="home-grid">
       <section class="card events" aria-labelledby="coming-up">
         <h2 id="coming-up">${icons.calendar}Coming up</h2>
