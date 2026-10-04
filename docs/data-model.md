@@ -63,12 +63,26 @@ readable ids (for example `maya`) make the data easier to work with.
 
 ## `rewards/{rewardId}`
 
+Written with `tools/hubtask.py rewards set FILE` (a JSON list of these, each with its `id`).
+
 | Field    | Type   | Notes |
 |----------|--------|-------|
 | `title`  | string | |
 | `detail` | string | |
-| `cost`   | int    | Points needed. |
+| `type`   | string | `fixed` (default), `flexible` or `perUnit`. |
+| `cost`   | int    | `fixed`: points needed. `flexible`: optional starting suggestion for the parent (default 0). `perUnit`: points per unit. |
+| `unit`   | string | `perUnit` only: what one unit is, e.g. `15 minutes`. |
+| `unitMinutes` | int | Optional, `perUnit` only: minutes in one unit, so totals read "1 hour 15 minutes". |
+| `maxQty` | int    | Optional, `perUnit` only: most units in one claim (default 20). |
+| `order`  | int    | Optional sort order on the Rewards page (then by cost). |
 | `active` | bool   | Hidden when `false`. |
+
+- **fixed**: claiming spends `cost` right away; declining gives it back.
+- **flexible** (e.g. a Pokémon pack): claiming spends nothing. In the Parents panel a
+  grown-up sets the points to take, then approves; the points come off then.
+- **perUnit** (e.g. screen time, 1 point = 15 minutes): the kid picks how many units and
+  claiming spends `quantity × cost`. When approving, a grown-up can change the quantity
+  and the points per unit; the difference is taken or given back.
 
 ## `claims/{claimId}`
 
@@ -79,7 +93,11 @@ Created by the iPad when someone claims a reward.
 | `personId`  | string    | |
 | `rewardId`  | string    | |
 | `title`     | string    | Copied from the reward. |
-| `cost`      | int       | Copied from the reward. |
+| `cost`      | int       | Points spent so far (0 for a flexible claim until approved); the final amount once approved. |
+| `type`      | string    | `flexible` or `perUnit`; missing for fixed claims. |
+| `quantity`  | int       | Flexible and per-unit claims: units asked for (1 for flexible); the approved amount once approved. |
+| `each`      | int       | Flexible and per-unit claims: points per unit (for flexible, the points). |
+| `unit`, `unitMinutes` | string, int | Per-unit claims: copied from the reward. |
 | `status`    | string    | `pending`, then `approved` or `denied`. |
 | `createdAt` | timestamp | |
 | `decidedAt` | timestamp | Set when a parent decides. |

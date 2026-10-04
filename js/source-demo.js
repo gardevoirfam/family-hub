@@ -70,7 +70,8 @@ const habits = [
 ];
 
 const rewards = [
-  { id: 'r1', title: '30 minutes of screen time', detail: 'Tablet, TV or games.', cost: 50, active: true },
+  { id: 'r1', title: 'Screen time', detail: 'Tablet, TV or games.', type: 'perUnit', cost: 1, unit: '15 minutes', unitMinutes: 15, active: true },
+  { id: 'r7', title: 'Pokémon pack', detail: 'A parent sets the points.', type: 'flexible', active: true },
   { id: 'r2', title: "Pick what's for dinner", detail: 'Any night this week.', cost: 75, active: true },
   { id: 'r3', title: 'Stay up 30 minutes late', detail: 'Friday or Saturday night.', cost: 100, active: true },
   { id: 'r4', title: 'Choose movie night', detail: 'You pick the movie and the snack.', cost: 120, active: true },
@@ -79,7 +80,8 @@ const rewards = [
 ];
 
 const claims = [
-  { id: 'c1', personId: 'maya', rewardId: 'r1', title: '30 minutes of screen time', cost: 50, status: 'pending', createdAt: at(0, 9) },
+  { id: 'c1', personId: 'maya', rewardId: 'r1', title: 'Screen time', type: 'perUnit', quantity: 2, each: 1, unit: '15 minutes', unitMinutes: 15, cost: 2, status: 'pending', createdAt: at(0, 9) },
+  { id: 'c3', personId: 'leo', rewardId: 'r7', title: 'Pokémon pack', type: 'flexible', quantity: 1, each: 0, cost: 0, status: 'pending', createdAt: at(0, 8) },
   { id: 'c2', personId: 'leo', rewardId: 'r2', title: "Pick what's for dinner", cost: 75, status: 'approved', createdAt: at(-1, 18) }
 ];
 
@@ -139,8 +141,8 @@ export const source = {
   watchHabits(personId, cb) { return watch(() => cb(copy(habits.filter(h => h.personId === personId)))); },
   watchPendingTasks(cb) { return watch(() => cb(copy(tasks.filter(t => t.pendingAt)))); },
   watchApprovalHabits(cb) { return watch(() => cb(copy(habits.filter(h => h.needsApproval)))); },
-  watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ ...r })))); },
-  watchClaims(cb) { return watch(() => cb(claims.map(c => ({ ...c })))); },
+  watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, ...r })))); },
+  watchClaims(cb) { return watch(() => cb(claims.map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
   watchParentSettings(cb) {
     hashPin(DEMO_PIN, parentSettings.pinSalt).then(pinHash => cb({ ...parentSettings, pinHash }));
     return () => {};
@@ -148,7 +150,10 @@ export const source = {
   watchDigest(cb) { cb(digest); return () => {}; },
   async commit({ task, habit, person, people: changedPeople, claimCreate, claimUpdate }) {
     if (claimCreate) claims.unshift({ id: 'c' + Date.now(), ...claimCreate, status: 'pending', createdAt: new Date() });
-    if (claimUpdate) Object.assign(claims.find(c => c.id === claimUpdate.id), { status: claimUpdate.status });
+    if (claimUpdate) {
+      const { id, ...fields } = claimUpdate;
+      Object.assign(claims.find(c => c.id === id), fields);
+    }
     if (task) {
       const t = tasks.find(x => x.id === task.id);
       if ('done' in task) Object.assign(t, { done: task.done, doneAt: task.done ? (task.doneAt || new Date()) : null });

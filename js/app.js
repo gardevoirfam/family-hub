@@ -4,8 +4,8 @@ import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
-import { renderParents } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick } from './points.js';
+import { renderParents, claimDraft } from './views/parents.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick } from './points.js';
 import { hashPin } from './pin.js';
 
 const root = document.getElementById('app');
@@ -24,8 +24,10 @@ const state = {
   digest: null,
   openEvent: null,
   claimer: null,
+  // How many units of a per-unit reward (such as screen time) are picked, by reward id.
+  claimQty: {},
   // The Parents dialog. Unlocking lasts until it is closed.
-  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [] },
+  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} },
   loading: { people: true, events: true, tasks: true, rewards: true },
   error: '',
   day: dayKey(),
@@ -170,7 +172,7 @@ async function save(change, okToast) {
 }
 
 function closeParents() {
-  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [] };
+  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
   render();
 }
 
@@ -200,7 +202,7 @@ async function handleAction(el) {
     return;
   }
   if (action === 'open-parents') {
-    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [] };
+    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
     render();
     return;
   }
@@ -216,11 +218,55 @@ async function handleAction(el) {
     render();
     return;
   }
+  if (action === 'claim-qty') {
+    const reward = state.rewards.find(r => r.id === id);
+    const person = personById(state.claimer) || state.people[0];
+    if (!reward || !person) return;
+    const n = (state.claimQty[id] || 1) + Number(el.dataset.delta);
+    state.claimQty[id] = Math.max(1, Math.min(n, maxUnits(reward, person)));
+    render();
+    return;
+  }
   if (action === 'claim') {
     const reward = state.rewards.find(r => r.id === id);
     const person = personById(state.claimer) || state.people[0];
-    if (!reward || !person || person.points < reward.cost) return;
+    if (!reward || !person) return;
+    const type = rewardType(reward);
+    if (type === 'flexible') {
+      if (person.points <= 0) return;
+      return save(claimChange(reward, person), 'Claimed! A parent will set the points.');
+    }
+    if (type === 'perUnit') {
+      const max = maxUnits(reward, person);
+      if (max < 1) return;
+      const qty = Math.min(Math.max(1, state.claimQty[id] || 1), max);
+      state.claimQty[id] = 1;
+      return save(claimChange(reward, person, qty), 'Claimed! A parent will OK it soon.');
+    }
+    if (person.points < reward.cost) return;
     return save(claimChange(reward, person), 'Claimed! A parent will OK it soon.');
+  }
+  if (action === 'claim-edit' && state.parents.unlocked) {
+    const claim = state.claims.find(c => c.id === id);
+    if (!claim || claim.status !== 'pending') return;
+    const draft = { ...claimDraft(claim, state.parents.edits) };
+    const field = el.dataset.field === 'quantity' ? 'quantity' : 'each';
+    draft[field] = Math.max(field === 'quantity' ? 1 : 0, draft[field] + Number(el.dataset.delta));
+    state.parents.edits = { ...state.parents.edits, [id]: draft };
+    render();
+    return;
+  }
+  if (action === 'approve-claim' && state.parents.unlocked) {
+    const claim = state.claims.find(c => c.id === id);
+    if (!claim || claim.status !== 'pending') return;
+    const person = personById(claim.personId);
+    const { quantity, each } = claimDraft(claim, state.parents.edits);
+    const change = approveClaimChange(claim, person, quantity, each);
+    if (person && person.points - change.delta < 0) return;
+    const total = quantity * each;
+    const settled = { ...claim, quantity, each, cost: total };
+    state.parents.log = [`${person ? person.name : 'Someone'}: ${claimLabel(settled)} approved, ${total} ${total === 1 ? 'point' : 'points'}`, ...state.parents.log].slice(0, 4);
+    return save(change);
   }
   if (action === 'adjust' && state.parents.unlocked) {
     const person = personById(id);
@@ -258,7 +304,7 @@ async function handleAction(el) {
     const status = el.dataset.status;
     const person = personById(claim.personId);
     const who = person ? person.name : 'Someone';
-    state.parents.log = [`${who}: ${claim.title} ${status === 'approved' ? 'approved' : `declined, ${claim.cost} points returned`}`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${who}: ${claimLabel(claim)} ${status === 'approved' ? 'approved' : claim.cost ? `declined, ${claim.cost} points returned` : 'declined'}`, ...state.parents.log].slice(0, 4);
     return save(decideChange(claim, person, status));
   }
 
@@ -330,7 +376,7 @@ function mainHtml(route) {
   if (route.name === 'rewards') {
     return banner + renderRewards({
       people: state.people, rewards: state.rewards, claims: state.claims,
-      claimer: state.claimer, loading: state.loading
+      claimer: state.claimer, claimQty: state.claimQty, loading: state.loading
     });
   }
   return banner + renderHome({ now, ...dayBounds(), ...state });
@@ -408,7 +454,7 @@ async function boot() {
     if (!user) {
       stopListeners();
       stopFocus();
-      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [] };
+      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
       state.people = []; state.events = []; state.tasks = [];
     }
     render();

@@ -220,21 +220,86 @@ export function approveHabitChange(habit, person, day, approve, today = new Date
   return { habit: { id: habit.id, day, done: true }, ...change };
 }
 
-// Claiming a reward spends its points now; a parent approves or declines later.
-export function claimChange(reward, person) {
+// Reward types: "fixed" costs `cost` points; "flexible" has its points set by a
+// parent when approving (`cost` is only the starting suggestion); "perUnit"
+// costs `cost` points per unit (for example 1 point per 15 minutes) and can be
+// claimed several units at a time.
+export function rewardType(reward) {
+  return reward.type === 'flexible' || reward.type === 'perUnit' ? reward.type : 'fixed';
+}
+
+// "45 minutes", "1 hour 30 minutes", or "3 × 15 minutes".
+export function unitAmount(quantity, unit, unitMinutes) {
+  if (unitMinutes > 0) {
+    const total = quantity * unitMinutes;
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    const parts = [];
+    if (h) parts.push(`${h} ${h === 1 ? 'hour' : 'hours'}`);
+    if (m || !h) parts.push(`${m} ${m === 1 ? 'minute' : 'minutes'}`);
+    return parts.join(' ');
+  }
+  return `${quantity} × ${unit || 'unit'}`;
+}
+
+// What a claim is for, such as "Screen time, 45 minutes".
+export function claimLabel(claim) {
+  return claim.type === 'perUnit'
+    ? `${claim.title}, ${unitAmount(claim.quantity, claim.unit, claim.unitMinutes)}`
+    : claim.title;
+}
+
+// The most units someone can claim at once with their points.
+export function maxUnits(reward, person) {
+  const each = Math.max(1, reward.cost);
+  const cap = reward.maxQty > 0 ? reward.maxQty : 20;
+  return Math.max(0, Math.min(cap, Math.floor(person.points / each)));
+}
+
+// Claiming spends the points now (nothing yet for a flexible reward, whose
+// points a parent sets when approving); a parent approves or declines later.
+export function claimChange(reward, person, quantity = 1) {
+  const type = rewardType(reward);
+  const claim = { personId: person.id, rewardId: reward.id, title: reward.title };
+  let cost = reward.cost;
+  if (type === 'flexible') {
+    cost = 0;
+    Object.assign(claim, { type, quantity: 1, each: Math.max(0, reward.cost) });
+  } else if (type === 'perUnit') {
+    cost = quantity * reward.cost;
+    Object.assign(claim, { type, quantity, each: reward.cost, unit: reward.unit, unitMinutes: reward.unitMinutes });
+  }
+  claim.cost = cost;
   return {
-    claimCreate: { personId: person.id, rewardId: reward.id, title: reward.title, cost: reward.cost },
-    person: { id: person.id, points: person.points - reward.cost, streak: person.streak },
-    logs: [{ personId: person.id, delta: -reward.cost, reason: `Claimed: ${reward.title}` }]
+    claimCreate: claim,
+    person: { id: person.id, points: person.points - cost, streak: person.streak },
+    logs: cost ? [{ personId: person.id, delta: -cost, reason: `Claimed: ${claimLabel(claim)}` }] : []
   };
 }
 
-// Declining gives the points back; approving changes nothing else.
+// Declining gives back whatever was spent; approving a fixed reward changes nothing else.
 export function decideChange(claim, person, status) {
   const change = { claimUpdate: { id: claim.id, status }, logs: [] };
-  if (status === 'denied' && person) {
+  if (status === 'denied' && person && claim.cost) {
     change.person = { id: person.id, points: person.points + claim.cost, streak: person.streak };
-    change.logs.push({ personId: person.id, delta: claim.cost, reason: `Returned: ${claim.title}` });
+    change.logs.push({ personId: person.id, delta: claim.cost, reason: `Returned: ${claimLabel(claim)}` });
+  }
+  return change;
+}
+
+// Approving a flexible or per-unit claim with the amount the parent settled on:
+// the difference from what was already spent is taken or given back.
+export function approveClaimChange(claim, person, quantity, each) {
+  const total = quantity * each;
+  const final = { ...claim, quantity, each, cost: total };
+  const change = { claimUpdate: { id: claim.id, status: 'approved', cost: total, quantity, each }, logs: [], delta: total - claim.cost };
+  if (change.delta && person) {
+    change.person = { id: person.id, points: person.points - change.delta, streak: person.streak };
+    change.logs.push({
+      personId: person.id,
+      delta: -change.delta,
+      reason: change.delta > 0 ? `Reward: ${claimLabel(final)}` : `Returned (changed by a parent): ${claimLabel(final)}`
+    });
   }
   return change;
 }
