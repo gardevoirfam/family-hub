@@ -42,7 +42,9 @@ const tasks = [
   { id: 't16', personIds: ['maya', 'leo'], title: 'Fold the laundry together', start: at(-1, 0), due: at(1, 20), points: 10, done: false },
   // Repeating tasks with a cooldown: no due date, back 4 days after each time.
   { id: 't17', personIds: ['maya', 'leo'], title: 'Clean the basement', points: 1, cooldownDays: 4, needsApproval: true, done: false },
-  { id: 't18', personId: 'maya', title: 'Clean your room', points: 1, cooldownDays: 4, needsApproval: true, done: true, doneAt: at(-1, 18) }
+  { id: 't18', personId: 'maya', title: 'Clean your room', points: 1, cooldownDays: 4, needsApproval: true, done: true, doneAt: at(-1, 18) },
+  // Ready again since 4 days ago and not done, so it shows as stale.
+  { id: 't19', personId: 'leo', title: 'Vacuum the stairs', points: 5, cooldownDays: 3, done: true, doneAt: at(-7, 17) }
 ];
 // Every task lists who it belongs to, as the Firebase source does.
 tasks.forEach(t => {

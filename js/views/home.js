@@ -87,21 +87,23 @@ function renderEvents(groups, peopleById, openEvent) {
 
 const MAX_JOBS = 4;
 
-// Today's tasks for one person, open ones first, with shared tasks naming the
-// other people on them.
+// Today's tasks for one person: late and stale ones first, then other open
+// ones, then done ones, with shared tasks naming the other people on them.
 function jobList(mine, p, peopleById, dayStart) {
   if (!mine.length) return '';
-  const sorted = [...mine].sort((a, b) => (a.done - b.done) || ((a.due || Infinity) - (b.due || Infinity)));
+  const rank = t => (t.overdue || t.stale ? 0 : t.done ? 2 : 1);
+  const sorted = [...mine].sort((a, b) => (rank(a) - rank(b)) || ((a.due || Infinity) - (b.due || Infinity)));
   const shown = sorted.slice(0, MAX_JOBS);
   const more = sorted.length - shown.length;
   return `
     <ul class="member-jobs">
       ${shown.map(t => {
         const others = t.personIds.filter(id => id !== p.id).map(id => peopleById.get(id)?.name).filter(Boolean);
-        return `<li class="${t.done ? 'done' : ''}">
+        const red = t.overdue || t.stale;
+        return `<li class="${t.done ? 'done' : ''} ${red ? 'overdue' : ''}">
           <span class="job-dot" style="${t.done ? `background:${p.color};border-color:${p.color}` : `border-color:${p.color}`}"></span>
           <span class="job-title">${esc(t.title)}${others.length ? ` <span class="job-with">with ${esc(others.join(' and '))}</span>` : ''}</span>
-          <span class="job-time ${!t.done && !t.pending && t.due && t.due < dayStart ? 'late' : ''}">${t.done ? 'Done' : t.pending ? 'Waiting for OK' : !t.due ? 'Any time' : t.due < dayStart ? 'Late' : daysBetween(dayStart, t.due) > 0 ? `By ${esc(fmt.weekday(t.due))}` : esc(fmt.time(t.due))}</span>
+          <span class="job-time ${red ? 'late' : ''}">${t.done ? 'Done' : t.pending ? 'Waiting for OK' : t.stale ? 'Overdue' : !t.due ? 'Any time' : t.overdue ? 'Late' : daysBetween(dayStart, t.due) > 0 ? `By ${esc(fmt.weekday(t.due))}` : esc(fmt.time(t.due))}</span>
         </li>`;
       }).join('')}
       ${more > 0 ? `<li class="job-more">+${more} more</li>` : ''}

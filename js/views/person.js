@@ -9,6 +9,10 @@ const clock = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" strok
 
 function dueLabel(task, dayStart, dayEnd) {
   if (task.pending) return "Waiting for a grown-up's OK";
+  if (task.stale) {
+    const ago = daysBetween(task.doneAt, dayStart);
+    return `Last done ${fmt.weekday(task.doneAt)}, ${fmt.shortDate(task.doneAt)} · ${ago} days ago`;
+  }
   // A task with no due date: a repeating one rests after it's done.
   if (!task.due) {
     if (task.againAt) return `Done · back ${fmt.weekday(task.againAt)} ${fmt.time(task.againAt)}`;
@@ -18,19 +22,28 @@ function dueLabel(task, dayStart, dayEnd) {
   if (task.start && daysBetween(task.start, task.due) > 0 && task.due >= dayStart) {
     return `${fmt.weekday(task.start)} to ${fmt.weekday(task.due)}, by ${fmt.time(task.due)}`;
   }
-  if (task.due >= dayStart && task.due < dayEnd) return `Today, ${fmt.time(task.due)}`;
+  if (task.due >= dayStart && task.due < dayEnd) return `${task.overdue ? 'Was due today' : 'Today'}, ${fmt.time(task.due)}`;
   if (task.due < dayStart) return `Was due ${fmt.weekday(task.due)}, ${fmt.shortDate(task.due)}`;
   if (daysBetween(dayStart, task.due) === 1) return `Tomorrow, ${fmt.time(task.due)}`;
   return `${fmt.weekday(task.due)}, ${fmt.shortDate(task.due)}`;
 }
 
-// Late: overdue from an earlier day (still open, or finished today).
-// Today: due today, a task whose window covers today, or an any-time task
-// that can be done now. Coming up: due later and not done yet. Resting: a
-// repeating task in its cooldown. Expects tasks from taskView.
+// Late: past its due time and still open, or due on an earlier day and
+// finished today. Stale: a repeating task ready again for a while. Today: due
+// today, a task whose window covers today, or an any-time task that can be
+// done now. Coming up: due later and not done yet. Resting: a repeating task
+// in its cooldown. Expects tasks from taskView.
 export function sortTasks(tasks, dayStart, dayEnd) {
-  const sections = { late: [], today: [], later: [], resting: [] };
+  const sections = { late: [], stale: [], today: [], later: [], resting: [] };
   for (const t of tasks) {
+    if (t.overdue) {
+      sections.late.push(t);
+      continue;
+    }
+    if (t.stale) {
+      sections.stale.push(t);
+      continue;
+    }
     if (!t.due) {
       if (t.againAt && !(t.doneAt && t.doneAt >= dayStart)) sections.resting.push(t);
       else sections.today.push(t);
@@ -47,7 +60,8 @@ export function sortTasks(tasks, dayStart, dayEnd) {
     }
   }
   // Dated tasks by due time, then any-time ones; resting ones by when they're back.
-  const order = t => (t.due ? t.due.getTime() : t.againAt ? t.againAt.getTime() : Infinity);
+  // Stale ones go oldest first.
+  const order = t => (t.due ? t.due.getTime() : t.againAt ? t.againAt.getTime() : t.stale ? t.doneAt.getTime() : Infinity);
   Object.values(sections).forEach(list => list.sort((a, b) => order(a) - order(b) || a.title.localeCompare(b.title)));
   sections.later = sections.later.slice(0, MAX_COMING_UP);
   return sections;
@@ -62,12 +76,12 @@ function withLabel(t, p, people) {
 
 function taskRow(t, p, people, now, dayStart, dayEnd) {
   const value = t.done ? taskValue(t, t.doneAt || now) : taskValue(t, t.pendingAt || now);
-  const late = !t.done && !t.pending && t.due && t.due < now;
+  const late = t.overdue || t.stale;
   const style = t.done ? `background:${p.color};border-color:${p.color};color:#FFFFFF`
     : t.pending ? `border-style:dashed;border-color:${p.color};color:${p.color}` : `color:${p.color}`;
   const label = t.pending ? `Cancel, waiting for OK: ${t.title}` : `${t.done ? 'Mark not done' : 'Mark done'}: ${t.title}`;
   return `
-    <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''}">
+    <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${late ? 'overdue' : ''}">
       <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}"
         aria-label="${esc(label)}" style="${style}">
         ${t.done ? check(26) : t.pending ? hourglass : ''}
@@ -152,7 +166,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
     return `<div class="card"><h2>Not found</h2><p class="note">That person isn't in the hub. <a href="#/home">Go home</a>.</p></div>`;
   }
   const sections = sortTasks(tasks.map(t => taskView(t, now)), dayStart, dayEnd);
-  const due = [...sections.late, ...sections.today];
+  const due = [...sections.late, ...sections.stale, ...sections.today];
   const done = due.filter(t => t.done).length;
   const doneText = !due.length ? 'Nothing due today.'
     : done === due.length ? 'Everything for today is done. Great job!'
@@ -160,6 +174,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
   const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
     { label: 'Late', note: 'A grown-up decides the points, so still worth doing', cls: 'late', list: sections.late },
+    { label: 'Not done in a while', note: 'Ready again for a few days', cls: 'late', list: sections.stale },
     { label: 'Today', note: '', cls: '', list: sections.today },
     { label: 'Coming up', note: '', cls: '', list: sections.later },
     { label: 'Done for now', note: 'Back after a rest', cls: '', list: sections.resting }
