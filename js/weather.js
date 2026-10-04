@@ -8,7 +8,7 @@ const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast?' + new URLSearchPa
   timezone: 'America/Toronto',
   forecast_days: '7',
   current: 'temperature_2m,apparent_temperature,weather_code',
-  hourly: 'precipitation_probability,precipitation,snowfall,weather_code',
+  hourly: 'apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code',
   daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,rain_sum,showers_sum,snowfall_sum'
 });
 
@@ -110,6 +110,72 @@ export function parseWeather(raw, now = new Date()) {
       code: raw.current.weather_code
     },
     days,
+    hours: raw.hourly.time.map((t, i) => ({
+      start: new Date(t),
+      feels: raw.hourly.apparent_temperature[i],
+      wet: (raw.hourly.precipitation_probability[i] ?? 0) >= WET_CHANCE || (raw.hourly.precipitation[i] ?? 0) >= WET_MM,
+      snow: (raw.hourly.snowfall[i] ?? 0) > 0 || SNOW_CODES.has(raw.hourly.weather_code[i]),
+      storm: STORM_CODES.has(raw.hourly.weather_code[i])
+    })),
     spells: wetSpells(raw.hourly, now)
+  };
+}
+
+// The part of the day the kids are out: 7 AM to 6 PM.
+const OUT_FROM = 7;
+const OUT_UNTIL = 18;
+
+// What the kids should wear, from the coldest "feels like" temperature while
+// they are out, plus rain or snow in that time. After 6 PM it plans for tomorrow.
+export function outfit(weather, now = new Date()) {
+  const tomorrow = now.getHours() >= OUT_UNTIL;
+  const day = new Date(now);
+  if (tomorrow) day.setDate(day.getDate() + 1);
+  const from = new Date(day); from.setHours(OUT_FROM, 0, 0, 0);
+  const until = new Date(day); until.setHours(OUT_UNTIL, 0, 0, 0);
+  const start = tomorrow || now < from ? from : new Date(Math.floor(now / 3600e3) * 3600e3);
+  const hours = (weather.hours || []).filter(h => h.start >= start && h.start < until && h.feels != null);
+  if (!hours.length) return null;
+  const temps = hours.map(h => h.feels);
+  const low = Math.round(Math.min(...temps));
+  const high = Math.round(Math.max(...temps));
+  const wet = hours.filter(h => h.wet);
+  const snow = wet.some(h => h.snow);
+  const rain = wet.some(h => !h.snow);
+  const storm = wet.some(h => h.storm);
+
+  const items = [];
+  let summary;
+  if (low <= -10) {
+    summary = 'Very cold';
+    items.push(['👕', 'Long sleeve shirt'], ['👖', 'Long pants'], ['🧥', 'Winter coat'], ['👖', 'Snow pants'], ['🧣', 'Hat, mitts and scarf'], ['🥾', 'Winter boots']);
+  } else if (low <= 0) {
+    summary = 'Cold';
+    items.push(['👕', 'Long sleeve shirt'], ['👖', 'Long pants'], ['🧥', 'Winter coat'], ['🧤', 'Hat and mitts']);
+  } else if (low <= 8) {
+    summary = 'Chilly';
+    items.push(['👕', 'Long sleeve shirt'], ['👖', 'Long pants'], ['🧥', 'Warm jacket']);
+    if (low <= 4) items.push(['🧢', 'Warm hat']);
+  } else if (low <= 15) {
+    summary = 'Cool';
+    items.push(['👕', 'Long sleeve shirt'], ['👖', 'Long pants'], ['🧥', 'Light jacket or hoodie']);
+  } else if (low <= 20) {
+    summary = 'Mild';
+    items.push(['👕', 'T-shirt'], ['👖', 'Long pants'], ['🧥', 'Bring a sweater']);
+  } else {
+    summary = high >= 28 ? 'Hot' : 'Warm';
+    items.push(['👕', 'T-shirt'], ['🩳', 'Shorts are fine']);
+    if (high >= 25) items.push(['🧴', 'Sunscreen and a hat'], ['💧', 'Water bottle']);
+  }
+  if (snow && low > -10) items.push(['🥾', 'Snow boots'], ...(low <= 0 ? [['👖', 'Snow pants']] : []));
+  if (rain || storm) items.push(['☔', 'Raincoat or umbrella'], ...(snow ? [] : [['🥾', 'Rain boots']]));
+  if (low > 0 && high - low >= 10) items.push(['🌡️', `Layers, it warms up to ${high}°`]);
+
+  // Keep one of each, first wins (snow boots can come from two rules).
+  const seen = new Set();
+  return {
+    when: tomorrow ? 'Tomorrow' : 'Today',
+    summary, low, high, snow, rain: rain || storm,
+    items: items.filter(([, text]) => !seen.has(text) && seen.add(text)).map(([icon, text]) => ({ icon, text }))
   };
 }

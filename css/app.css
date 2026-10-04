@@ -159,6 +159,13 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .wday-icon { font-size: 26px; line-height: 1.1; }
 .wday-temp { font-weight: 800; }
 .wday-temp span { color: var(--muted-2); font-weight: 700; }
+.outfit { grid-column: 1 / -1; padding: 16px 18px; border-radius: 16px; background: #FFF4DB; display: flex; flex-direction: column; gap: 12px; }
+.outfit-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.outfit-head b { font-family: var(--display); font-weight: 600; font-size: 22px; }
+.outfit-head span { font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.outfit-items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.outfit-items li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: #FFFFFF; font-size: 17px; font-weight: 800; }
+.outfit-items li span { font-size: 22px; line-height: 1; }
 .wday-wet { font-size: 12px; font-weight: 800; color: #2563C9; white-space: nowrap; }
 @media (max-width: 1180px) {
   .weather { grid-template-columns: auto minmax(0, 1fr); }
