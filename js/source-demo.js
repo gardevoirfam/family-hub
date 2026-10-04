@@ -59,8 +59,8 @@ tasks.forEach(t => {
 const pastDays = offsets => Object.fromEntries(offsets.map(n => [dayKey(addDays(startOfDay(), -n)), true]));
 const habits = [
   { id: 'h1', personId: 'maya', name: 'Read 20 minutes', order: 1, points: 1, bonus: 2, days: pastDays([1, 2, 3, 5, 6]) },
-  { id: 'h2', personId: 'maya', name: 'Practice piano', order: 2, points: 2, perWeek: 5, bonus: 4, days: pastDays([1, 2, 3, 4]) },
-  { id: 'h3', personId: 'maya', name: 'Brush teeth at night', order: 3, days: pastDays([1, 2, 3, 4, 5, 6]) },
+  { id: 'h2', personId: 'maya', name: 'Practice piano', order: 2, points: 2, perWeek: 5, bonus: 4, days: pastDays([1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) },
+  { id: 'h3', personId: 'maya', name: 'Brush teeth at night', order: 3, days: pastDays([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) },
   { id: 'h4', personId: 'leo', name: 'Brush teeth', order: 1, days: pastDays([1, 2, 3, 4, 5, 6]) },
   { id: 'h5', personId: 'leo', name: 'Read with a grown-up', order: 2, days: pastDays([1, 2, 3, 4, 5, 6]) },
   { id: 'h6', personId: 'leo', name: 'Shoes by the door', order: 3, days: pastDays([1, 2, 3, 4, 5, 6]) },

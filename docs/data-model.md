@@ -16,7 +16,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `color`  | string | Optional `#RRGGBB`. A palette color is used when missing. |
 | `soft`   | string | Optional light tint `#RRGGBB` for backgrounds. Derived from `color` when missing. |
 | `points` | int    | Current balance. The iPad may change it (never below 0). |
-| `streak` | int    | Current habit streak in days. The iPad may change it. |
+| `streak` | int    | Longest current habit streak, in weeks. The iPad may change it. |
 
 ## `tasks/{taskId}`
 
@@ -43,10 +43,10 @@ readable ids (for example `maya`) make the data easier to work with.
 | `name`     | string | |
 | `order`    | number | Optional sort order on the person page. |
 | `points`   | int    | Optional. Points per tick (default 2). |
-| `perWeek`  | int    | Optional. Ticks needed per Monday-to-Sunday week, 1 to 7 (default: every day, or every day in `weekdays`). A person's `streak` counts weeks in a row in which every one of their habits met its goal. |
+| `perWeek`  | int    | Optional. Ticks needed per Monday-to-Sunday week, 1 to 7 (default: every day, or every day in `weekdays`). Each habit has its own streak: weeks in a row in which it met its goal (shown with a flame next to the habit). |
 | `weekdays` | string[] | Optional. The days the habit is for, e.g. `["sat"]` or `["mon", "wed", "fri"]`. It can only be ticked on those days; other days are blank. Without it, every day. `perWeek` defaults to the number of these days. |
 | `needsApproval` | bool | Optional. When `true`, a tick is saved as `"pending"` in `days` and earns nothing until a grown-up approves it in the Parents panel (then it becomes `true` and the points, plus any bonus, are paid). Declining clears it. |
-| `bonus`    | int    | Optional. Extra points earned by the tick that meets this habit's weekly goal (default 0, no bonus). Unticking that day takes it back. |
+| `bonus`    | int    | Optional. Extra points earned by the tick that meets this habit's weekly goal (default 0, no bonus). Doubled (not compounding) when the habit also met its goal the week before, e.g. 4, 8, 8. Unticking that day takes it back. |
 | `days`     | map    | Keys are local dates `YYYY-MM-DD`, value `true` when done (or `"pending"` while waiting for approval). The iPad may change it. |
 
 ## `events/{eventId}`
