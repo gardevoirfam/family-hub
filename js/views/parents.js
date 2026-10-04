@@ -1,5 +1,5 @@
 import { esc, avatar, icons } from '../ui.js';
-import { unitAmount, claimLabel } from '../points.js';
+import { unitAmount, claimLabel, tickedLate } from '../points.js';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'];
 
@@ -111,6 +111,55 @@ function claimRow(c, p, edits) {
     </div>`;
 }
 
+// The points a parent will give each person for a late task: their edits so
+// far, or 0.
+export function lateTaskDraft(task, edits = {}) {
+  const d = edits['task:' + task.id];
+  return d ? d.each : 0;
+}
+
+function lateStepBtn(t, delta, label, disabled) {
+  return `<button type="button" class="step" data-action="late-task-edit" data-id="${esc(t.id)}" data-delta="${delta}" ${disabled ? 'disabled' : ''} aria-label="${label}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</button>`;
+}
+
+function pendingTaskRow(t, who, edits) {
+  const first = who[0] || { name: '?', color: 'var(--muted)' };
+  const names = esc(who.map(p => p.name).join(' and ') || '?');
+  const each = who.length > 1 ? ' each' : '';
+  const buttons = `
+        <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}" data-status="denied">Not done</button>
+        <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}" data-status="approved">Approve</button>`;
+  if (!tickedLate(t)) {
+    return `
+      <div class="adjust">
+        ${avatar(first, 40)}
+        <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${names} · +${t.points}${each}</span></div>
+        ${buttons}
+      </div>`;
+  }
+  const award = lateTaskDraft(t, edits);
+  const pts = n => `${n} ${n === 1 ? 'point' : 'points'}`;
+  return `
+    <div class="adjust claim-flex">
+      <div class="claim-flex-top">
+        ${avatar(first, 40)}
+        <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${names} · done late, worth +${t.points}${each} on time</span></div>
+      </div>
+      <div class="claim-edit">
+        <span class="claim-edit-label">Points</span>
+        ${lateStepBtn(t, -1, 'One point less', award < 1)}
+        <b class="claim-edit-val">${award}</b>
+        ${lateStepBtn(t, 1, 'One point more')}
+        <button type="button" class="btn-outline small" data-action="late-task-full" data-id="${esc(t.id)}" ${award === t.points ? 'disabled' : ''}>Full points</button>
+        <button type="button" class="btn-outline small" data-action="late-task-none" data-id="${esc(t.id)}" ${award === 0 ? 'disabled' : ''}>No points</button>
+      </div>
+      <div class="claim-flex-top">
+        <span class="claim-total" style="flex:1">Give ${pts(award)}${each}</span>
+        ${buttons}
+      </div>
+    </div>`;
+}
+
 function controls({ people, claims, approvalHabits = [], pendingTasks = [], log, edits = {} }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const pending = claims.filter(c => c.status === 'pending');
@@ -136,17 +185,8 @@ function controls({ people, claims, approvalHabits = [], pendingTasks = [], log,
       ${pendingTasks.length ? `
         <section class="stack" style="gap:10px">
           <h3>Tasks waiting for OK</h3>
-          ${[...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt).map(t => {
-            const who = t.personIds.map(id => byId.get(id)).filter(Boolean);
-            const first = who[0] || { name: '?', color: 'var(--muted)' };
-            return `
-              <div class="adjust">
-                ${avatar(first, 40)}
-                <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${esc(who.map(p => p.name).join(' and ') || '?')} · +${t.points}${who.length > 1 ? ' each' : ''}</span></div>
-                <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}" data-status="denied">Not done</button>
-                <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}" data-status="approved">Approve</button>
-              </div>`;
-          }).join('')}
+          ${[...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt).map(t =>
+            pendingTaskRow(t, t.personIds.map(id => byId.get(id)).filter(Boolean), edits)).join('')}
         </section>` : ''}
       ${ticks.length ? `
         <section class="stack" style="gap:10px">

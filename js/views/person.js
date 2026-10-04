@@ -159,7 +159,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
     : `${done} of ${due.length} tasks done today`;
   const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
-    { label: 'Late', note: 'No points now, but still worth doing', cls: 'late', list: sections.late },
+    { label: 'Late', note: 'A grown-up decides the points, so still worth doing', cls: 'late', list: sections.late },
     { label: 'Today', note: '', cls: '', list: sections.today },
     { label: 'Coming up', note: '', cls: '', list: sections.later },
     { label: 'Done for now', note: 'Back after a rest', cls: '', list: sections.resting }
