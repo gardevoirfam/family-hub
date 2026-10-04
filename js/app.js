@@ -4,7 +4,7 @@ import { renderLogin } from './views/login.js';
 import { renderHome } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
-import { renderParents, claimDraft } from './views/parents.js';
+import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
 import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 
@@ -283,13 +283,24 @@ async function handleAction(el) {
     state.parents.log = [`${person.name}: ${sign}${Math.abs(change.delta)} points (now ${change.person.points})`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
+  if ((action === 'late-task-edit' || action === 'late-task-full' || action === 'late-task-none') && state.parents.unlocked) {
+    const task = state.pendingTasks.find(t => t.id === id);
+    if (!task || !task.pendingAt) return;
+    const now = lateTaskDraft(task, state.parents.edits);
+    const each = action === 'late-task-full' ? task.points
+      : action === 'late-task-none' ? 0
+      : Math.max(0, now + Number(el.dataset.delta));
+    state.parents.edits = { ...state.parents.edits, ['task:' + id]: { each } };
+    render();
+    return;
+  }
   if (action === 'decide-task' && state.parents.unlocked) {
     const task = state.pendingTasks.find(t => t.id === id);
     if (!task || !task.pendingAt) return;
     const people = task.personIds.map(personById).filter(Boolean);
     if (!people.length) return;
     const approve = el.dataset.status === 'approved';
-    const change = approveTaskChange(task, people, approve);
+    const change = approveTaskChange(task, people, approve, new Date(), lateTaskDraft(task, state.parents.edits));
     const names = people.map(p => p.name).join(' and ');
     state.parents.log = [`${names}: ${task.title} ${approve ? `approved, +${change.delta} ${change.delta === 1 ? 'point' : 'points'}${people.length > 1 ? ' each' : ''}` : 'not approved'}`, ...state.parents.log].slice(0, 4);
     return save(change);

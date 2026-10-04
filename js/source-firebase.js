@@ -313,7 +313,7 @@ export const source = {
         fields.done = task.done;
         fields.doneAt = !task.done ? null : task.doneAt ? fs.Timestamp.fromDate(task.doneAt) : fs.serverTimestamp();
       }
-      // Only tasks that need approval ever have pendingAt set.
+      // Only tasks that need approval, or were ticked late, ever have pendingAt set.
       if (task.pending) fields.pendingAt = fs.serverTimestamp();
       else if (task.clearPending) fields.pendingAt = null;
       batch.update(fs.doc(db, 'tasks', task.id), fields);

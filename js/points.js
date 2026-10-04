@@ -154,10 +154,11 @@ export function taskView(task, now = new Date()) {
 
 // Builds the change for ticking or unticking a task. A shared task pays every
 // person on it the full value, so `people` is everyone the task belongs to.
-// A task with needsApproval only goes to "pending" when ticked; points come
-// when a grown-up approves it (see approveTaskChange).
+// A task with needsApproval, or one ticked after it was due, only goes to
+// "pending" when ticked; points come when a grown-up approves it (see
+// approveTaskChange). For a late task the grown-up decides the points.
 export function taskChange(task, people, done, now = new Date()) {
-  if (task.needsApproval && done) {
+  if (done && (task.needsApproval || isLate(task, now))) {
     return { task: { id: task.id, pending: true }, logs: [], delta: 0, pending: true };
   }
   if (task.pendingAt && !done) {
@@ -167,10 +168,12 @@ export function taskChange(task, people, done, now = new Date()) {
 }
 
 // `doneAt` is the completion time to save (null means now, by the server).
-function pointsForTask(task, people, done, at, doneAt) {
+// `award` is the points a grown-up chose for a late task (null: the rules).
+function pointsForTask(task, people, done, at, doneAt, award = null) {
   // Unticking takes back what ticking gave, judged by when it was ticked.
-  const value = taskValue(task, at);
-  const reason = `${task.title} (${done ? (isLate(task, at) ? 'late' : 'on time') : 'unticked'})`;
+  const late = isLate(task, at);
+  const value = award ?? taskValue(task, at);
+  const reason = `${task.title} (${done ? (late ? (value ? 'late, points given by a parent' : 'late') : 'on time') : 'unticked'})`;
   const changes = people.map(person => {
     const delta = done ? value : -Math.min(value, person.points);
     return { person, delta };
@@ -185,11 +188,18 @@ function pointsForTask(task, people, done, at, doneAt) {
 
 // A grown-up's answer to a pending task. Approving pays everyone on it, as if
 // it was done when it was ticked (so it isn't late if ticked on time, and its
-// cooldown starts then). Declining puts it back to open.
-export function approveTaskChange(task, people, approve, now = new Date()) {
+// cooldown starts then). A late task pays `award` points each (0 if not
+// given). Declining puts it back to open.
+export function approveTaskChange(task, people, approve, now = new Date(), award = null) {
   if (!approve) return { task: { id: task.id, clearPending: true }, logs: [], delta: 0 };
   const at = task.pendingAt || now;
-  return pointsForTask(task, people, true, at, at);
+  const late = isLate(task, at);
+  return pointsForTask(task, people, true, at, at, late ? Math.max(0, award || 0) : null);
+}
+
+// Whether a pending task was ticked after it was due.
+export function tickedLate(task) {
+  return !!task.pendingAt && isLate(task, task.pendingAt);
 }
 
 // The points (and bonus, if this tick meets the weekly goal) for setting or
