@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, habitDays, habitOnDay, canTick, weekCount } from '../points.js';
+import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, habitDays, habitOnDay, canTick, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -136,7 +136,7 @@ function habitGrid(habits, p, today) {
   return `<div class="habit-grid"><div></div>${head}${rows}</div>`;
 }
 
-export function renderPerson({ person: p, people = [], tasks, habits, loading, now, today, dayStart, dayEnd }) {
+export function renderPerson({ person: p, people = [], tasks, habits, log, loading, now, today, dayStart, dayEnd }) {
   if (!p) {
     return `<div class="card"><h2>Not found</h2><p class="note">That person isn't in the hub. <a href="#/home">Go home</a>.</p></div>`;
   }
@@ -147,6 +147,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, loading, n
     : done === due.length ? 'Everything for today is done. Great job!'
     : `${done} of ${due.length} tasks done today`;
   const streak = habitStreak(habits, today);
+  const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
     { label: 'Late', note: 'No points now, but still worth doing', cls: 'late', list: sections.late },
     { label: 'Today', note: '', cls: '', list: sections.today },
@@ -157,12 +158,14 @@ export function renderPerson({ person: p, people = [], tasks, habits, loading, n
   return `
     <header class="person-head" style="background:${p.soft}">
       ${avatar(p, 72)}
-      <div style="flex:1;min-width:0">
+      <div style="flex:1;min-width:200px">
         <h1>${esc(p.name)}'s tasks</h1>
         <div class="person-sub">${loading.tasks ? '' : doneText}</div>
       </div>
       <div class="stats">
         <div class="stat"><small>${icons.star}POINTS</small><b>${p.points}</b></div>
+        <div class="stat" title="Points earned since Monday"><small>THIS WEEK</small><b>${weekly ? weekly.thisWeek : '…'}</b></div>
+        <div class="stat" title="Average points earned per week over the last 4 weeks"><small>WEEKLY AVG</small><b>${!weekly ? '…' : weekly.average === null ? '–' : weekly.average}</b></div>
         <div class="stat"><small>${icons.flame}STREAK</small><b>${streak} ${streak === 1 ? 'week' : 'weeks'}</b></div>
       </div>
     </header>

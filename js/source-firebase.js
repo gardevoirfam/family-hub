@@ -261,6 +261,27 @@ export const source = {
     }, onError);
   },
 
+  // Everyone's pointsLog entries since `from` (filtered by person on the page,
+  // so no composite index is needed), plus when the hub's first entry was made.
+  watchPointsLog(from, cb, onError) {
+    let first;
+    let entries;
+    const send = () => { if (first !== undefined && entries) cb({ first, entries }); };
+    fs.getDocs(fs.query(fs.collection(db, 'pointsLog'), fs.orderBy('at'), fs.limit(1)))
+      .then(snap => { first = snap.empty ? null : toDate(snap.docs[0].data().at); send(); },
+        () => { first = null; send(); });
+    return fs.onSnapshot(
+      fs.query(fs.collection(db, 'pointsLog'), fs.where('at', '>=', fs.Timestamp.fromDate(from))),
+      snap => {
+        entries = snap.docs.map(d => {
+          const x = d.data({ serverTimestamps: 'estimate' });
+          return { personId: x.personId || '', delta: Number(x.delta) || 0, reason: x.reason || '', at: toDate(x.at) };
+        });
+        if (first === null && entries.length) first = entries.reduce((a, e) => (e.at && e.at < a ? e.at : a), entries[0].at);
+        send();
+      }, onError);
+  },
+
   // Applies one check-off as a single batch: the task or habit, the person's
   // points and streak, and the matching pointsLog entries. A batch (rather than
   // a transaction) still works offline and syncs when Wi-Fi returns.
