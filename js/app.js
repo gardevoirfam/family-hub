@@ -7,6 +7,7 @@ import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
 import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
+import { loadWeather } from './weather.js';
 
 const root = document.getElementById('app');
 const demo = new URLSearchParams(location.search).has('demo');
@@ -22,6 +23,7 @@ const state = {
   pendingTasks: [],
   parentPin: { pinHash: '', pinSalt: '' },
   digest: null,
+  weather: null,
   openEvent: null,
   claimer: null,
   // How many units of a per-unit reward (such as screen time) are picked, by reward id.
@@ -370,10 +372,19 @@ async function handleAction(el) {
   }
 }
 
+// The forecast only refetches once it is a while old, so calling this often is cheap.
+function refreshWeather() {
+  loadWeather(weather => {
+    state.weather = weather;
+    render();
+  });
+}
+
 // Re-reads everything from the server. Listeners already stream changes; this
 // is a belt-and-braces refresh on tab switches, after taps and on wake-up.
 function refreshData() {
   if (!state.user) return;
+  refreshWeather();
   startListeners({ keepData: true });
   syncFocus(parseRoute(), { refresh: true });
 }
@@ -485,7 +496,7 @@ async function boot() {
   source.onAuth(user => {
     const wasSignedIn = !!state.user;
     state.user = user;
-    if (user && !wasSignedIn) startListeners();
+    if (user && !wasSignedIn) { startListeners(); refreshWeather(); }
     if (!user) {
       stopListeners();
       stopFocus();
@@ -551,6 +562,7 @@ setInterval(() => {
     location.reload();
     return;
   }
+  refreshWeather();
   if (dayKey() !== state.day) {
     startListeners();
     stopFocus();

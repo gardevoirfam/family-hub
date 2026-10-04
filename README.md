@@ -14,6 +14,7 @@ SDK: no build step, so GitHub Pages serves the repository as is.
 | Firebase project config | `js/config.js` |
 | Sign-in, routing, app shell | `js/app.js` |
 | Pages | `js/views/` |
+| Home page weather (Open-Meteo, no key) | `js/weather.js` |
 | Firestore reads/writes | `js/source-firebase.js` (`js/source-demo.js` for `?demo`) |
 | Database schema | `docs/data-model.md` |
 | Access rules | kept privately, not in this repository |
