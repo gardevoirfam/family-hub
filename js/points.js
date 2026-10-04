@@ -145,11 +145,27 @@ export function taskState(task, now = new Date()) {
   return again && now >= again ? 'open' : 'done';
 }
 
+// A repeating task counts as stale once it has been ready again for this many
+// days without being done.
+export const STALE_DAYS = 3;
+
+function isStale(task, now) {
+  const back = isRepeating(task) && task.doneAt
+    ? task.doneAt.getTime() + task.cooldownDays * DAY_MS : null;
+  return back !== null && now.getTime() - back >= STALE_DAYS * DAY_MS;
+}
+
 // A task as the pages show it right now: a repeating task whose cooldown has
 // passed reads as not done, and `pending` / `againAt` are filled in.
+// `overdue` is an open task past its due time; `stale` is an open repeating
+// task that has been ready again for STALE_DAYS or more.
 export function taskView(task, now = new Date()) {
   const state = taskState(task, now);
-  return { ...task, done: state === 'done', pending: state === 'pending', againAt: state === 'done' ? availableAgainAt(task) : null };
+  const open = state === 'open';
+  return {
+    ...task, done: state === 'done', pending: state === 'pending', againAt: state === 'done' ? availableAgainAt(task) : null,
+    overdue: open && isLate(task, now), stale: open && isStale(task, now)
+  };
 }
 
 // Builds the change for ticking or unticking a task. A shared task pays every

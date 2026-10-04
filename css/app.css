@@ -168,6 +168,7 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .job-with { font-weight: 600; color: var(--muted); }
 .job-time { flex: none; font-size: 13px; color: var(--muted); }
 .job-time.late { color: var(--danger); }
+.member-jobs li.overdue .job-title { color: var(--danger); }
 .member-jobs .job-more { font-size: 13px; color: var(--muted); padding-left: 20px; }
 
 /* ---------- Person / placeholder ---------- */
@@ -190,6 +191,7 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
   border-radius: 18px; background: #FFFFFF; border: 2px solid var(--line-2);
 }
 .task.done { background: var(--soft); border-color: var(--soft); }
+.task.overdue { background: #FEF3F2; border-color: #F04438; }
 .check {
   width: 52px; height: 52px; flex-shrink: 0; padding: 0;
   border-radius: 16px; border: 3px solid #9AA5B4; background: #FFFFFF;
