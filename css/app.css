@@ -242,6 +242,9 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .reward-detail { font-size: 15px; color: var(--muted); flex: 1; }
 .reward-btn { height: 52px; border-radius: 14px; border: 0; font-size: 16px; font-weight: 800; background: var(--track); color: var(--muted); }
 .reward-btn:disabled { cursor: not-allowed; }
+.qty { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.qty b { font-size: 17px; font-weight: 800; text-align: center; flex: 1; }
+.step:disabled { opacity: 0.4; cursor: not-allowed; }
 .card.side { padding: 22px; display: flex; flex-direction: column; gap: 10px; border-radius: 22px; }
 .card.side h2 { font-size: 22px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; }
@@ -271,6 +274,13 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .adjust { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: var(--soft); }
 .adjust-name { flex: 1; font-size: 17px; font-weight: 800; }
 .adjust-pts { width: 80px; text-align: right; font-size: 18px; font-weight: 800; }
+.claim-flex { flex-direction: column; align-items: stretch; }
+.claim-flex-top { display: flex; align-items: center; gap: 12px; }
+.claim-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.claim-edit-label { font-size: 14px; font-weight: 800; color: var(--muted); }
+.claim-edit-val { min-width: 40px; text-align: center; font-size: 20px; font-weight: 800; }
+.claim-total { font-size: 16px; font-weight: 800; }
+.btn-approve:disabled { opacity: 0.4; cursor: not-allowed; }
 .step { width: 60px; height: 48px; border-radius: 12px; border: 2px solid var(--field); background: #FFFFFF; font-size: 17px; font-weight: 800; }
 
 .offline {

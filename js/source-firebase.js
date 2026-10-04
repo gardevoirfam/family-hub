@@ -200,6 +200,11 @@ export const source = {
           title: x.title || '',
           detail: x.detail || '',
           cost: Number(x.cost) || 0,
+          type: x.type || 'fixed',
+          unit: x.unit || '',
+          unitMinutes: Number(x.unitMinutes) || 0,
+          maxQty: Number(x.maxQty) || 0,
+          order: Number.isFinite(x.order) ? x.order : 999,
           active: x.active !== false
         };
       }));
@@ -223,6 +228,11 @@ export const source = {
           rewardId: x.rewardId || '',
           title: x.title || '',
           cost: Number(x.cost) || 0,
+          type: x.type || 'fixed',
+          quantity: Number(x.quantity) || 1,
+          each: Number(x.each) || 0,
+          unit: x.unit || '',
+          unitMinutes: Number(x.unitMinutes) || 0,
           status: x.status || 'pending',
           createdAt: toDate(x.createdAt)
         };
@@ -257,14 +267,23 @@ export const source = {
   async commit({ task, habit, person, people, logs, claimCreate, claimUpdate }) {
     const batch = fs.writeBatch(db);
     if (claimCreate) {
-      batch.set(fs.doc(fs.collection(db, 'claims')), {
+      const fields = {
         personId: claimCreate.personId, rewardId: claimCreate.rewardId,
         title: claimCreate.title, cost: claimCreate.cost,
         status: 'pending', createdAt: fs.serverTimestamp()
-      });
+      };
+      // Flexible and per-unit claims carry their amount; fixed ones stay as before.
+      if (claimCreate.type) {
+        Object.assign(fields, { type: claimCreate.type, quantity: claimCreate.quantity, each: claimCreate.each });
+        if (claimCreate.unit) fields.unit = claimCreate.unit;
+        if (claimCreate.unitMinutes) fields.unitMinutes = claimCreate.unitMinutes;
+      }
+      batch.set(fs.doc(fs.collection(db, 'claims')), fields);
     }
     if (claimUpdate) {
-      batch.update(fs.doc(db, 'claims', claimUpdate.id), { status: claimUpdate.status, decidedAt: fs.serverTimestamp() });
+      const fields = { status: claimUpdate.status, decidedAt: fs.serverTimestamp() };
+      for (const k of ['cost', 'quantity', 'each']) if (k in claimUpdate) fields[k] = claimUpdate[k];
+      batch.update(fs.doc(db, 'claims', claimUpdate.id), fields);
     }
     if (task) {
       const fields = {};

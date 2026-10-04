@@ -1,15 +1,57 @@
 import { esc, avatar, icons } from '../ui.js';
+import { rewardType, unitAmount, claimLabel, maxUnits } from '../points.js';
 
-const STATUS = {
-  pending: ['Waiting for a parent', '#8A4B00'],
-  approved: ['Approved', '#0F766E'],
-  denied: ['Not this time, points returned', 'var(--muted)']
-};
+function claimStatus(c) {
+  const pts = n => `${n} ${n === 1 ? 'point' : 'points'}`;
+  if (c.status === 'approved') return [c.type === 'fixed' ? 'Approved' : `Approved, ${pts(c.cost)}`, '#0F766E'];
+  if (c.status === 'denied') return [c.cost ? 'Not this time, points returned' : 'Not this time', 'var(--muted)'];
+  return [c.type === 'flexible' ? 'Waiting for a parent to set the points' : 'Waiting for a parent', '#8A4B00'];
+}
 
-export function renderRewards({ people, rewards, claims, claimer, loading }) {
+function card(r, who, qty) {
+  const type = rewardType(r);
+  const btn = (ok, label) => `
+    <button type="button" class="reward-btn" data-action="claim" data-id="${esc(r.id)}" ${ok ? '' : 'disabled'}
+      style="${ok ? `background:${who.color};color:#FFFFFF` : ''}">${label}</button>`;
+  let cost, extra = '', button;
+  if (type === 'flexible') {
+    cost = 'A parent sets the points';
+    const ok = who && who.points > 0;
+    button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : 'Need some points first');
+  } else if (type === 'perUnit') {
+    const each = Math.max(1, r.cost);
+    cost = `${each} ${each === 1 ? 'point' : 'points'} = ${esc(r.unitMinutes ? unitAmount(1, r.unit, r.unitMinutes) : r.unit || 'one')}`;
+    const max = who ? maxUnits(r, who) : 0;
+    const n = Math.min(Math.max(1, qty || 1), Math.max(1, max));
+    if (max > 0) {
+      extra = `
+        <div class="qty" role="group" aria-label="How much">
+          <button type="button" class="step" data-action="claim-qty" data-id="${esc(r.id)}" data-delta="-1" ${n <= 1 ? 'disabled' : ''} aria-label="Less">−</button>
+          <b>${esc(unitAmount(n, r.unit, r.unitMinutes))}</b>
+          <button type="button" class="step" data-action="claim-qty" data-id="${esc(r.id)}" data-delta="1" ${n >= max ? 'disabled' : ''} aria-label="More">+</button>
+        </div>`;
+    }
+    const total = n * each;
+    button = btn(max > 0, !who ? 'Pick someone' : max > 0 ? `Claim for ${esc(who.name)} (${total} ${total === 1 ? 'point' : 'points'})` : `Need ${each - who.points} more`);
+  } else {
+    cost = `${r.cost} points`;
+    const ok = who && who.points >= r.cost;
+    button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : `Need ${r.cost - who.points} more`);
+  }
+  return `
+    <div class="reward">
+      <div class="reward-cost">${icons.star}${cost}</div>
+      <div class="reward-title">${esc(r.title)}</div>
+      <div class="reward-detail">${esc(r.detail)}</div>
+      ${extra}
+      ${button}
+    </div>`;
+}
+
+export function renderRewards({ people, rewards, claims, claimer, claimQty = {}, loading }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const who = byId.get(claimer) || people[0];
-  const list = rewards.filter(r => r.active).sort((a, b) => a.cost - b.cost || a.title.localeCompare(b.title));
+  const list = rewards.filter(r => r.active).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.cost - b.cost || a.title.localeCompare(b.title));
   const recent = claims.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
 
   const pickers = people.map(p => {
@@ -24,26 +66,15 @@ export function renderRewards({ people, rewards, claims, claimer, loading }) {
 
   const cards = !list.length
     ? '<div class="empty" style="grid-column:1/-1">No rewards yet.</div>'
-    : list.map(r => {
-      const ok = who && who.points >= r.cost;
-      const label = !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : `Need ${r.cost - who.points} more`;
-      return `
-        <div class="reward">
-          <div class="reward-cost">${icons.star}${r.cost} points</div>
-          <div class="reward-title">${esc(r.title)}</div>
-          <div class="reward-detail">${esc(r.detail)}</div>
-          <button type="button" class="reward-btn" data-action="claim" data-id="${esc(r.id)}" ${ok ? '' : 'disabled'}
-            style="${ok ? `background:${who.color};color:#FFFFFF` : ''}">${label}</button>
-        </div>`;
-    }).join('');
+    : list.map(r => card(r, who, claimQty[r.id])).join('');
 
   const recentHtml = !recent.length ? '<p class="note">No claims yet.</p>' : recent.map(c => {
     const p = byId.get(c.personId) || { name: '?', color: 'var(--muted)' };
-    const [label, color] = STATUS[c.status] || STATUS.pending;
+    const [label, color] = claimStatus(c);
     return `
       <div class="claim">
         ${avatar(p, 36)}
-        <div class="claim-body"><b>${esc(c.title)}</b><span style="color:${color}">${esc(p.name)}, ${label}</span></div>
+        <div class="claim-body"><b>${esc(claimLabel(c))}</b><span style="color:${color}">${esc(p.name)}, ${label}</span></div>
       </div>`;
   }).join('');
 

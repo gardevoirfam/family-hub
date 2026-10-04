@@ -17,6 +17,9 @@ Commands:
                                     FILE (JSON list copied from Google Calendar)
   digest set FILE [--dry-run]       replace the weekly digest on the home page
                                     with FILE (JSON: title and sections)
+  rewards get                       print the rewards catalog as JSON
+  rewards set FILE [--dry-run]      make the rewards catalog match FILE (JSON list);
+                                    rewards not in FILE are removed
 
 The schedule format is described in docs/data-model.md. Generated jobs get the
 id "<chore id>-<due date>", so running generate again never makes duplicates,
@@ -386,6 +389,76 @@ def cmd_digest(hub, args):
     print(f"Saved digest \"{clean['title']}\" with {len(clean['sections'])} section(s), {count} item(s).")
 
 
+REWARD_TYPES = ('fixed', 'flexible', 'perUnit')
+
+
+def check_rewards(rewards):
+    if not isinstance(rewards, list):
+        return ['the file must be a JSON list of rewards']
+    problems, seen = [], set()
+    for n, r in enumerate(rewards, 1):
+        if not isinstance(r, dict):
+            problems.append(f'reward {n} must be an object')
+            continue
+        name = r.get('id') or f'reward {n}'
+        if not re.fullmatch(r'[a-z0-9-]+', str(r.get('id') or '')):
+            problems.append(f'{name}: id must be lowercase letters, digits and dashes')
+        elif r['id'] in seen:
+            problems.append(f'{name}: id used twice')
+        seen.add(r.get('id'))
+        if not r.get('title'):
+            problems.append(f'{name}: needs a title')
+        kind = r.get('type', 'fixed')
+        if kind not in REWARD_TYPES:
+            problems.append(f'{name}: type must be one of {", ".join(REWARD_TYPES)}')
+        cost = r.get('cost')
+        if kind == 'fixed' and not (isinstance(cost, int) and cost > 0):
+            problems.append(f'{name}: a fixed reward needs a whole-number cost above 0')
+        if kind == 'perUnit':
+            if not (isinstance(cost, int) and cost > 0):
+                problems.append(f'{name}: a per-unit reward needs cost (points per unit) above 0')
+            if not r.get('unit'):
+                problems.append(f'{name}: a per-unit reward needs a unit, e.g. "15 minutes"')
+        if kind == 'flexible' and cost is not None and not (isinstance(cost, int) and cost >= 0):
+            problems.append(f'{name}: cost (the suggested points) must be a whole number')
+        for k in ('unitMinutes', 'maxQty', 'order'):
+            if k in r and not (isinstance(r[k], int) and r[k] >= 0):
+                problems.append(f'{name}: {k} must be a whole number')
+    return problems
+
+
+def cmd_rewards(hub, args):
+    if args.action == 'get':
+        print(json.dumps([{'id': i, **d} for i, d in hub.list('rewards')], indent=2, default=str))
+        return
+    if not args.file:
+        sys.exit('rewards set needs a JSON file')
+    with open(args.file) as f:
+        rewards = json.load(f)
+    problems = check_rewards(rewards)
+    if problems:
+        sys.exit('Not saved. Problems:\n  ' + '\n  '.join(problems))
+    keys = ('title', 'detail', 'type', 'cost', 'unit', 'unitMinutes', 'maxQty', 'order')
+    wanted = {}
+    for r in rewards:
+        data = {k: r[k] for k in keys if k in r}
+        data.setdefault('detail', '')
+        data.setdefault('type', 'fixed')
+        data.setdefault('cost', 0)
+        data['active'] = r.get('active', True) is not False
+        wanted[r['id']] = data
+    stale = [i for i, _ in hub.list('rewards') if i not in wanted]
+    for doc_id, data in wanted.items():
+        print(('would save ' if args.dry_run else 'saved ') + f"{doc_id}: {data['title']} ({data['type']})")
+        if not args.dry_run:
+            hub.set(f'rewards/{doc_id}', data)
+    for doc_id in stale:
+        print(('would remove ' if args.dry_run else 'removed ') + doc_id)
+        if not args.dry_run:
+            hub.delete(f'rewards/{doc_id}')
+    print(f'{len(wanted)} reward(s) saved, {len(stale)} removed' + (' (dry run)' if args.dry_run else '') + '.')
+
+
 def cmd_schedule(hub, args):
     if args.action == 'get':
         print(json.dumps(hub.get('settings/schedule') or {'timezone': DEFAULT_TZ, 'chores': []}, indent=2))
@@ -422,11 +495,15 @@ def main():
     d.add_argument('action', choices=['set'])
     d.add_argument('file')
     d.add_argument('--dry-run', action='store_true')
+    r = sub.add_parser('rewards', help='read or replace the rewards catalog')
+    r.add_argument('action', choices=['get', 'set'])
+    r.add_argument('file', nargs='?')
+    r.add_argument('--dry-run', action='store_true')
     args = p.parse_args()
 
     hub = Hub()
     hub.sign_in()
-    {'generate': cmd_generate, 'schedule': cmd_schedule, 'events': cmd_events, 'digest': cmd_digest}[args.cmd](hub, args)
+    {'generate': cmd_generate, 'schedule': cmd_schedule, 'events': cmd_events, 'digest': cmd_digest, 'rewards': cmd_rewards}[args.cmd](hub, args)
 
 
 if __name__ == '__main__':
