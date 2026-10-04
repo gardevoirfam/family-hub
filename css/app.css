@@ -210,6 +210,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .habit-meta { white-space: nowrap; }
 .habit-meta.met { color: var(--ink-2); }
 .habit-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cell.save-cell { background: #FFF0E6; border: 2px dashed #E8590C; color: #E8590C; cursor: pointer; }
+.cell.saved-cell { background: #E8590C; color: #FFFFFF; }
 .habit-streak { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 800; color: #E8590C; white-space: nowrap; }
 .cell {
   width: 40px; height: 40px; border-radius: 12px; padding: 0;

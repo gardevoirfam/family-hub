@@ -5,7 +5,7 @@ import { renderHome } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 
 const root = document.getElementById('app');
@@ -337,6 +337,18 @@ async function handleAction(el) {
     if (change.pending) showToast(`${habit.name}: waiting for a grown-up to OK it`);
     else if (change.bonus) showToast(`${habit.name} goal met this week! +${change.delta} points`);
     else if (done) showToast(`${habit.name} done! +${change.delta} points`);
+    return save(change);
+  }
+  if (action === 'save-habit-day') {
+    const habit = state.focus.habits.find(h => h.id === id);
+    const day = el.dataset.day;
+    if (!habit || !day) return;
+    const [y, m, d] = day.split('-').map(Number);
+    const date = new Date(y, m - 1, d, 12);
+    if (!canSave(habit, state.focus.habits, person, date)) return;
+    if (!confirm(`Save ${habit.name} on ${date.toLocaleDateString('en-US', { weekday: 'long' })} for ${SAVE_COST} points? You can save one day a week.`)) return;
+    const change = saveDayChange(habit, state.focus.habits, person, day);
+    showToast(change.bonus ? `${habit.name} saved and goal met!` : `${habit.name} saved!`);
     return save(change);
   }
 }
