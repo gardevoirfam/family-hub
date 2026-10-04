@@ -136,11 +136,22 @@ export function availableAgainAt(task) {
     : null;
 }
 
+// When a dated task can first be ticked: the start of its window, or the
+// start of the day it's due. Tasks with no due date can be ticked any time.
+export function opensAt(task) {
+  if (task.start) return task.start;
+  return task.due ? startOfDay(task.due) : null;
+}
+
 // How a task stands right now: "pending" (ticked, waiting for a grown-up's
-// OK), "done" (done, or resting in its cooldown) or "open" (can be ticked).
+// OK), "done" (done, or resting in its cooldown), "later" (not open yet, e.g.
+// tomorrow's task) or "open" (can be ticked).
 export function taskState(task, now = new Date()) {
   if (task.pendingAt) return 'pending';
-  if (!task.done) return 'open';
+  if (!task.done) {
+    const opens = opensAt(task);
+    return opens && now < opens ? 'later' : 'open';
+  }
   const again = availableAgainAt(task);
   return again && now >= again ? 'open' : 'done';
 }
@@ -156,14 +167,14 @@ function isStale(task, now) {
 }
 
 // A task as the pages show it right now: a repeating task whose cooldown has
-// passed reads as not done, and `pending` / `againAt` are filled in.
+// passed reads as not done, and `pending` / `later` / `againAt` are filled in.
 // `overdue` is an open task past its due time; `stale` is an open repeating
 // task that has been ready again for STALE_DAYS or more.
 export function taskView(task, now = new Date()) {
   const state = taskState(task, now);
   const open = state === 'open';
   return {
-    ...task, done: state === 'done', pending: state === 'pending', againAt: state === 'done' ? availableAgainAt(task) : null,
+    ...task, done: state === 'done', pending: state === 'pending', later: state === 'later', againAt: state === 'done' ? availableAgainAt(task) : null,
     overdue: open && isLate(task, now), stale: open && isStale(task, now)
   };
 }

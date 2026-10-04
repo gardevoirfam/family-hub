@@ -78,12 +78,15 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
   const value = t.done ? taskValue(t, t.doneAt || now) : taskValue(t, t.pendingAt || now);
   const late = t.overdue || t.stale;
   const style = t.done ? `background:${p.color};border-color:${p.color};color:#FFFFFF`
-    : t.pending ? `border-style:dashed;border-color:${p.color};color:${p.color}` : `color:${p.color}`;
-  const label = t.pending ? `Cancel, waiting for OK: ${t.title}` : `${t.done ? 'Mark not done' : 'Mark done'}: ${t.title}`;
+    : t.pending ? `border-style:dashed;border-color:${p.color};color:${p.color}`
+    : t.later ? '' : `color:${p.color}`;
+  // A task before its day can't be ticked yet; tapping it just says when.
+  const label = t.pending ? `Cancel, waiting for OK: ${t.title}`
+    : t.later ? `Not yet: ${t.title}` : `${t.done ? 'Mark not done' : 'Mark done'}: ${t.title}`;
   return `
-    <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${late ? 'overdue' : ''}">
+    <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${t.later ? 'later' : ''} ${late ? 'overdue' : ''}">
       <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}"
-        aria-label="${esc(label)}" style="${style}">
+        aria-label="${esc(label)}" ${t.later ? 'aria-disabled="true"' : ''} style="${style}">
         ${t.done ? check(26) : t.pending ? hourglass : ''}
       </button>
       <div class="task-body">
