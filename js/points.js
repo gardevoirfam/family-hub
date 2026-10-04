@@ -1,6 +1,7 @@
 // Point rules from the Rewards page: full points on time, no points late,
 // each habit's own points per tick (2 if not set), plus the habit's own bonus
-// (if any) the moment it meets its weekly goal (Monday to Sunday).
+// (if any) the moment it meets its weekly goal (Monday to Sunday). The bonus is
+// doubled when the habit is on a streak (it also met its goal the week before).
 import { startOfDay, addDays, dayKey } from './dates.js';
 
 export const HABIT_POINTS = 2;
@@ -64,8 +65,8 @@ export function canTick(habit, d) {
   return habitOnDay(habit, d) && weekCount(habit, weekStart(d)) < habitGoal(habit);
 }
 
-function allGoalsMet(habits, monday) {
-  return habits.length > 0 && habits.every(h => weekCount(h, monday, { approvedOnly: true }) >= habitGoal(h));
+function goalMet(habit, monday) {
+  return weekCount(habit, monday, { approvedOnly: true }) >= habitGoal(habit);
 }
 
 // What a job is worth if finished at `at`.
@@ -77,18 +78,29 @@ function isLate(task, at) {
   return !!task.due && at > task.due;
 }
 
-// Weeks in a row (ending this week, or last week if this week's goals aren't
-// met yet) in which every habit met its weekly goal.
-export function habitStreak(habits, today = new Date()) {
-  if (!habits.length) return 0;
+// Weeks in a row (ending this week, or last week if this week's goal isn't
+// met yet) in which this habit met its weekly goal.
+export function habitStreak(habit, today = new Date()) {
   let monday = weekStart(today);
-  if (!allGoalsMet(habits, monday)) monday = addDays(monday, -7);
+  if (!goalMet(habit, monday)) monday = addDays(monday, -7);
   let n = 0;
-  while (n < 520 && allGoalsMet(habits, monday)) {
+  while (n < 520 && goalMet(habit, monday)) {
     n++;
     monday = addDays(monday, -7);
   }
   return n;
+}
+
+// A person's longest current habit streak (saved on the person as `streak`).
+export function bestStreak(habits, today = new Date()) {
+  return habits.reduce((n, h) => Math.max(n, habitStreak(h, today)), 0);
+}
+
+// The bonus for meeting the goal in the week starting `monday`: the habit's
+// bonus, doubled if it also met its goal the week before (4, 8, 8, ...).
+export function weekBonus(habit, monday) {
+  const base = habitBonus(habit);
+  return base && goalMet(habit, addDays(monday, -7)) ? base * 2 : base;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -170,20 +182,21 @@ function habitPointsChange(habit, habits, person, done, day, today) {
     ? { ...h, days: { ...h.days, [key]: done || undefined } }
     : h);
   const self = next.find(h => h.id === habit.id) || { ...habit, days: { ...habit.days, [key]: done || undefined } };
-  const goal = habitGoal(habit);
-  const before = weekCount(habit, monday, { approvedOnly: true }) >= goal;
-  const after = weekCount(self, monday, { approvedOnly: true }) >= goal;
+  const before = goalMet(habit, monday);
+  const after = goalMet(self, monday);
   const logs = [];
   const value = habitPoints(habit);
   let delta = done ? value : -value;
   logs.push({ personId: person.id, delta, reason: `${habit.name} (${done ? 'done' : 'unticked'})` });
   // A habit's bonus is earned by the tick that meets its weekly goal, and
-  // taken back if that tick is undone.
+  // taken back if that tick is undone. On a streak it's doubled.
+  const streakBonus = weekBonus(habit, monday);
+  const onStreak = streakBonus > habitBonus(habit);
   let bonus = 0;
-  if (done && !before && after) bonus = habitBonus(habit);
-  if (!done && before && !after) bonus = -habitBonus(habit);
+  if (done && !before && after) bonus = streakBonus;
+  if (!done && before && !after) bonus = -streakBonus;
   if (bonus) {
-    logs.push({ personId: person.id, delta: bonus, reason: `${habit.name} weekly goal${bonus < 0 ? ' (unticked)' : ''}` });
+    logs.push({ personId: person.id, delta: bonus, reason: `${habit.name} weekly goal${onStreak ? ' (streak x2)' : ''}${bonus < 0 ? ' (unticked)' : ''}` });
     delta += bonus;
   }
   // Points never go below zero.
@@ -193,7 +206,7 @@ function habitPointsChange(habit, habits, person, done, day, today) {
     logs[logs.length - 1].delta -= shortBy;
   }
   return {
-    person: { id: person.id, points: person.points + delta, streak: habitStreak(next, today) },
+    person: { id: person.id, points: person.points + delta, streak: bestStreak(next, today) },
     logs: logs.filter(l => l.delta),
     delta,
     bonus: bonus > 0
@@ -218,7 +231,7 @@ export function approveHabitChange(habit, person, day, approve, today = new Date
   if (!approve) return { habit: { id: habit.id, day, done: false }, logs: [], delta: 0 };
   const [y, m, d] = day.split('-').map(Number);
   const change = habitPointsChange(habit, [habit], person, true, new Date(y, m - 1, d, 12), today);
-  // The streak needs all of a person's habits, which aren't loaded here.
+  // The saved streak needs all of a person's habits, which aren't loaded here.
   change.person.streak = person.streak;
   return { habit: { id: habit.id, day, done: true }, ...change };
 }

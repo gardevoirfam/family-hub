@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, habitDays, habitOnDay, canTick, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -119,7 +119,9 @@ function habitGrid(habits, p, today) {
       const style = done ? `background:${p.color};color:#FFFFFF` : '';
       return `<div class="cell ${future ? 'future' : done ? '' : 'missed'}" style="${style}" aria-hidden="true">${done ? check(20) : ''}</div>`;
     }).join('');
-    const bonus = habitBonus(h);
+    const bonus = weekBonus(h, monday);
+    const doubled = bonus > habitBonus(h);
+    const streak = habitStreak(h, today);
     const allowed = habitDays(h);
     const onDays = allowed.length < 7 ? week.filter(d => allowed.includes(d.getDay())).map(d => fmt.weekday(d)).join(', ') : '';
     // A habit due every allowed day (and with no bonus) names its days, or
@@ -129,8 +131,10 @@ function habitGrid(habits, p, today) {
       : `${Math.min(count, goal)} of ${goal}${approved >= goal ? ' ✓' : ''}`;
     const label = (onDays ? `on ${onDays}, ` : goal === 7 ? 'every day, ' : '')
       + (goal < allowed.length ? `${goal} times a week, ` : '')
-      + `${count} done this week, ${habitPoints(h)} points` + (bonus ? `, ${bonus} point bonus for the week` : '');
-    return `<div class="habit-name">${esc(h.name)}
+      + `${count} done this week, ${habitPoints(h)} points` + (bonus ? `, ${bonus} point bonus for the week${doubled ? ' (doubled for the streak)' : ''}` : '')
+      + (streak ? `, ${streak} ${streak === 1 ? 'week' : 'weeks'} in a row` : '');
+    const flame = streak ? `<span class="habit-streak" title="${streak} ${streak === 1 ? 'week' : 'weeks'} in a row">${icons.flame}${streak}</span>` : '';
+    return `<div class="habit-name"><span class="habit-title">${esc(h.name)}${flame}</span>
       <span class="habit-meta ${approved >= goal ? 'met' : ''}" title="${esc(label)}">${goalText} · +${habitPoints(h)}${bonus ? ` · bonus ${bonus}` : ''}${count > approved ? ' · waiting for OK' : h.needsApproval ? ' · needs OK' : ''}</span></div>${cells}`;
   }).join('');
   return `<div class="habit-grid"><div></div>${head}${rows}</div>`;
@@ -146,7 +150,6 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
   const doneText = !due.length ? 'Nothing due today.'
     : done === due.length ? 'Everything for today is done. Great job!'
     : `${done} of ${due.length} tasks done today`;
-  const streak = habitStreak(habits, today);
   const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
     { label: 'Late', note: 'No points now, but still worth doing', cls: 'late', list: sections.late },
@@ -166,7 +169,6 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
         <div class="stat"><small>${icons.star}POINTS</small><b>${p.points}</b></div>
         <div class="stat" title="Points earned since Monday"><small>THIS WEEK</small><b>${weekly ? weekly.thisWeek : '…'}</b></div>
         <div class="stat" title="Average points earned per week over the last 4 weeks"><small>WEEKLY AVG</small><b>${!weekly ? '…' : weekly.average === null ? '–' : weekly.average}</b></div>
-        <div class="stat"><small>${icons.flame}STREAK</small><b>${streak} ${streak === 1 ? 'week' : 'weeks'}</b></div>
       </div>
     </header>
     <div class="person-grid">
@@ -186,7 +188,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
           <p class="note" style="margin-top:4px">Tap today's square when you've done it.</p>
         </div>
         ${loading.habits ? '<div class="empty">Loading…</div>' : habitGrid(habits, p, today)}
-        ${habits.some(h => habitBonus(h)) ? '<div class="empty" style="color:var(--ink-2)">Meet a habit\'s weekly goal to earn its bonus.</div>' : ''}
+        ${habits.some(h => habitBonus(h)) ? '<div class="empty" style="color:var(--ink-2)">Meet a habit\'s weekly goal to earn its bonus. Meet it again next week and the bonus is doubled while the streak lasts.</div>' : ''}
       </section>
     </div>`;
 }
