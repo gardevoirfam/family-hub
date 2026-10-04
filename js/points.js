@@ -2,9 +2,11 @@
 // each habit's own points per tick (2 if not set), plus the habit's own bonus
 // (if any) the moment it meets its weekly goal (Monday to Sunday). The bonus is
 // doubled when the habit is on a streak (it also met its goal the week before).
+// Once a week, a person can spend points to save one missed day of one habit.
 import { startOfDay, addDays, dayKey } from './dates.js';
 
 export const HABIT_POINTS = 2;
+export const SAVE_COST = 4;
 
 // Extra points when a habit meets its weekly goal (0 if not set).
 export function habitBonus(habit) {
@@ -45,13 +47,14 @@ export function weekStart(d = new Date()) {
 
 // Ticks in the Monday-to-Sunday week starting `monday`. A tick on a habit
 // that needs a grown-up's OK is "pending" until approved; it counts toward the
-// goal for display and locking, but only approved ticks earn points.
+// goal for display and locking, but only approved ticks earn points. A day
+// saved with points ("saved") counts like an approved tick.
 export function weekCount(habit, monday, { approvedOnly = false } = {}) {
   let n = 0;
   for (let i = 0; i < 7; i++) {
     const d = addDays(monday, i);
     const v = habit.days[dayKey(d)];
-    if ((approvedOnly ? v === true : v) && habitOnDay(habit, d)) n++;
+    if ((approvedOnly ? v === true || v === 'saved' : v) && habitOnDay(habit, d)) n++;
   }
   return n;
 }
@@ -67,6 +70,22 @@ export function canTick(habit, d) {
 
 function goalMet(habit, monday) {
   return weekCount(habit, monday, { approvedOnly: true }) >= habitGoal(habit);
+}
+
+// Whether any of a person's habits already used this week's save.
+export function savedThisWeek(habits, monday) {
+  return habits.some(h => [...Array(7)].some((_, i) => h.days[dayKey(addDays(monday, i))] === 'saved'));
+}
+
+// Whether `person` can spend SAVE_COST points to fill in the missed day d: an
+// earlier day of this week that the habit is for, with the goal not yet met,
+// and no save used on any habit this week.
+export function canSave(habit, habits, person, d, today = new Date()) {
+  const monday = weekStart(today);
+  return startOfDay(d) < startOfDay(today) && startOfDay(d) >= monday
+    && habitOnDay(habit, d) && !habit.days[dayKey(d)]
+    && !goalMet(habit, monday) && !savedThisWeek(habits, monday)
+    && person.points >= SAVE_COST;
 }
 
 // What a job is worth if finished at `at`.
@@ -174,20 +193,22 @@ export function approveTaskChange(task, people, approve, now = new Date()) {
 }
 
 // The points (and bonus, if this tick meets the weekly goal) for setting or
-// clearing an approved tick on `day`.
-function habitPointsChange(habit, habits, person, done, day, today) {
+// clearing an approved tick on `day`. A save (`saved`) costs SAVE_COST instead
+// of paying the tick's points.
+function habitPointsChange(habit, habits, person, done, day, today, saved = false) {
   const monday = weekStart(day);
   const key = dayKey(day);
+  const mark = saved ? 'saved' : done || undefined;
   const next = habits.map(h => h.id === habit.id
-    ? { ...h, days: { ...h.days, [key]: done || undefined } }
+    ? { ...h, days: { ...h.days, [key]: mark } }
     : h);
-  const self = next.find(h => h.id === habit.id) || { ...habit, days: { ...habit.days, [key]: done || undefined } };
+  const self = next.find(h => h.id === habit.id) || { ...habit, days: { ...habit.days, [key]: mark } };
   const before = goalMet(habit, monday);
   const after = goalMet(self, monday);
   const logs = [];
   const value = habitPoints(habit);
-  let delta = done ? value : -value;
-  logs.push({ personId: person.id, delta, reason: `${habit.name} (${done ? 'done' : 'unticked'})` });
+  let delta = saved ? -SAVE_COST : done ? value : -value;
+  logs.push({ personId: person.id, delta, reason: saved ? `Streak save: ${habit.name} (${key})` : `${habit.name} (${done ? 'done' : 'unticked'})` });
   // A habit's bonus is earned by the tick that meets its weekly goal, and
   // taken back if that tick is undone. On a streak it's doubled.
   const streakBonus = weekBonus(habit, monday);
@@ -223,6 +244,13 @@ export function habitChange(habit, habits, person, done, today = new Date()) {
     return { habit: { id: habit.id, day, done, value: 'pending' }, logs: [], delta: 0, pending: done };
   }
   return { habit: { id: habit.id, day, done }, ...habitPointsChange(habit, habits, person, done, today, today) };
+}
+
+// Spending SAVE_COST points to fill in a missed day (a YYYY-MM-DD key) of this
+// week. It counts toward the goal, streak and bonus, but pays no tick points.
+export function saveDayChange(habit, habits, person, day, today = new Date()) {
+  const [y, m, d] = day.split('-').map(Number);
+  return { habit: { id: habit.id, day, done: true, value: 'saved' }, ...habitPointsChange(habit, habits, person, true, new Date(y, m - 1, d, 12), today, true) };
 }
 
 // A grown-up's answer to a pending tick on `day` (a YYYY-MM-DD key):
@@ -330,8 +358,9 @@ export function adjustChange(person, delta) {
   };
 }
 
-// Point changes from claiming or giving back rewards are spending, not earning.
-const SPENDING = /^(Claimed|Returned|Reward)\b/;
+// Point changes from claiming or giving back rewards, and streak saves, are
+// spending, not earning.
+const SPENDING = /^(Claimed|Returned|Reward|Streak save)\b/;
 
 // Points earned this week (Monday to Sunday) and the average per week over the
 // previous `weeks` full weeks, from one person's pointsLog entries. Ticks,

@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, canSave, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -112,6 +112,13 @@ function habitGrid(habits, p, today) {
         return `<button type="button" class="cell today" data-action="toggle-habit" data-id="${esc(h.id)}"
           aria-label="${esc(h.name)} today: ${done ? 'done' : 'not done yet'}"
           style="${done ? `background:${p.color};border-color:${p.color};color:#FFFFFF` : `border-color:${p.color}`}">${done ? check(20) : ''}</button>`;
+      }
+      if (h.days[key] === 'saved') {
+        return `<div class="cell saved-cell" title="Saved with points">${icons.flame}</div>`;
+      }
+      if (canSave(h, habits, p, d, today)) {
+        return `<button type="button" class="cell save-cell" data-action="save-habit-day" data-id="${esc(h.id)}" data-day="${key}"
+          aria-label="Save ${esc(h.name)} on ${fmt.weekday(d)} for ${SAVE_COST} points">${icons.flame}</button>`;
       }
       const future = d > today;
       // Once the weekly goal is reached, the rest of the week is closed.
