@@ -316,3 +316,27 @@ export function adjustChange(person, delta) {
     delta: applied
   };
 }
+
+// Point changes from claiming or giving back rewards are spending, not earning.
+const SPENDING = /^(Claimed|Returned|Reward)\b/;
+
+// Points earned this week (Monday to Sunday) and the average per week over the
+// previous `weeks` full weeks, from one person's pointsLog entries. Ticks,
+// unticks, bonuses and parent adjustments count; rewards don't. Weeks before
+// the hub's first log entry (`since`) are left out of the average; with no
+// full week yet, the average is null.
+export function weeklyPoints(logs, today, since, weeks = 4) {
+  const monday = weekStart(today);
+  const first = since ? weekStart(since) : monday;
+  const totals = [...Array(weeks + 1)].fill(0);
+  for (const log of logs) {
+    if (!log.at || SPENDING.test(log.reason || '')) continue;
+    const i = Math.round((monday - weekStart(log.at)) / (7 * 24 * 60 * 60 * 1000));
+    if (i >= 0 && i <= weeks) totals[i] += log.delta;
+  }
+  const counted = totals.slice(1).filter((_, i) => addDays(monday, -7 * (i + 1)) >= first);
+  return {
+    thisWeek: totals[0],
+    average: counted.length ? Math.round(counted.reduce((a, b) => a + b, 0) / counted.length) : null
+  };
+}

@@ -105,6 +105,16 @@ const digest = cleanDigest({
   ]
 });
 
+// Five weeks of point history so the weekly numbers have something to show.
+const pointsLog = [];
+people.forEach((p, n) => {
+  for (let day = -34; day <= 0; day++) {
+    const delta = 5 + ((day * 7 + n * 3) % 4 + 4) % 4 * 5;
+    pointsLog.push({ personId: p.id, delta, reason: 'Sample task (on time)', at: at(day, 9) });
+  }
+  pointsLog.push({ personId: p.id, delta: -15, reason: 'Claimed: Pick dessert', at: at(-3, 18) });
+});
+
 const parentSettings = { pinHash: '', pinSalt: 'demo' };
 export const DEMO_PIN = '1234';
 
@@ -148,7 +158,10 @@ export const source = {
     return () => {};
   },
   watchDigest(cb) { cb(digest); return () => {}; },
-  async commit({ task, habit, person, people: changedPeople, claimCreate, claimUpdate }) {
+  watchPointsLog(from, cb) {
+    return watch(() => cb({ first: pointsLog[0].at, entries: pointsLog.filter(e => e.at >= from).map(e => ({ ...e })) }));
+  },
+  async commit({ task, habit, person, people: changedPeople, logs, claimCreate, claimUpdate }) {
     if (claimCreate) claims.unshift({ id: 'c' + Date.now(), ...claimCreate, status: 'pending', createdAt: new Date() });
     if (claimUpdate) {
       const { id, ...fields } = claimUpdate;
@@ -167,6 +180,7 @@ export const source = {
     for (const p of [person, ...(changedPeople || [])].filter(Boolean)) {
       Object.assign(people.find(x => x.id === p.id), { points: p.points, streak: p.streak });
     }
+    for (const log of logs || []) pointsLog.push({ ...log, at: new Date() });
     changed();
   }
 };

@@ -171,14 +171,14 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .member-jobs .job-more { font-size: 13px; color: var(--muted); padding-left: 20px; }
 
 /* ---------- Person / placeholder ---------- */
-.person-head { display: flex; align-items: center; gap: 20px; padding: 22px 24px; border-radius: 24px; margin-bottom: 24px; }
+.person-head { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; padding: 22px 24px; border-radius: 24px; margin-bottom: 24px; }
 .person-head h1 { font-family: var(--display); font-weight: 600; font-size: 40px; line-height: 1.1; }
 .stat { background: #FFFFFF; border-radius: 18px; padding: 12px 18px; min-width: 96px; display: flex; flex-direction: column; gap: 2px; }
 .stat small { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--muted); }
-.stat b { font-size: 28px; font-weight: 800; }
+.stat b { font-size: 28px; font-weight: 800; white-space: nowrap; }
 
 .person-sub { font-size: 17px; color: var(--ink-2); margin-top: 4px; }
-.stats { display: flex; gap: 12px; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; }
 .person-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 20px; }
 .task-group { display: flex; flex-direction: column; gap: 10px; }
@@ -300,7 +300,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
   .nav .logo, .nav-spacer { display: none; }
   .nav-btn { width: 72px; min-height: 60px; }
   .main { height: auto; flex: 1; }
-  .person-head { flex-wrap: wrap; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .stat b { font-size: 24px; }
   .habit-grid { grid-template-columns: minmax(0, 1fr) repeat(7, 32px); column-gap: 4px; }
   .cell { width: 32px; height: 32px; border-radius: 10px; }
   .cell.today { width: 36px; height: 36px; }

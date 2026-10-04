@@ -106,6 +106,8 @@ Created by the iPad when someone claims a reward.
 
 Append-only history written next to every point change.
 
+The person page sums it into points earned this week and the average per week over the previous 4 full weeks (Monday to Sunday). Entries whose `reason` starts with `Claimed`, `Returned` or `Reward` are reward spending and don't count as earned.
+
 | Field      | Type      | Notes |
 |------------|-----------|-------|
 | `personId` | string    | |

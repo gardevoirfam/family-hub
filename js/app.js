@@ -5,7 +5,7 @@ import { renderHome } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, canTick, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 
 const root = document.getElementById('app');
@@ -33,7 +33,7 @@ const state = {
   day: dayKey(),
   login: { error: '', busy: false, username: '' },
   // The person page's own data, loaded while that page is open.
-  focus: { id: null, tasks: [], habits: [], loading: { tasks: true, habits: true } },
+  focus: { id: null, tasks: [], habits: [], log: null, loading: { tasks: true, habits: true } },
   toast: ''
 };
 
@@ -123,7 +123,7 @@ function startListeners({ keepData = false } = {}) {
 function stopFocus() {
   focusUnsubs.forEach(u => u());
   focusUnsubs = [];
-  state.focus = { id: null, tasks: [], habits: [], loading: { tasks: true, habits: true } };
+  state.focus = { id: null, tasks: [], habits: [], log: null, loading: { tasks: true, habits: true } };
 }
 
 // Keeps the person page's listeners in step with the route.
@@ -149,6 +149,12 @@ function syncFocus(route, { refresh = false } = {}) {
     if (state.focus.id !== id) return;
     state.focus.habits = list.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
     state.focus.loading.habits = false;
+    render();
+  }, onDataError));
+  // This week and the four full weeks before it, for the weekly points.
+  focusUnsubs.push(source.watchPointsLog(addDays(weekStart(new Date()), -28), ({ first, entries }) => {
+    if (state.focus.id !== id) return;
+    state.focus.log = { first, entries: entries.filter(e => e.personId === id) };
     render();
   }, onDataError));
 }
@@ -370,7 +376,7 @@ function mainHtml(route) {
       now, ...dayBounds(),
       person: state.people.find(p => p.id === route.id),
       people: state.people,
-      tasks: state.focus.tasks, habits: state.focus.habits, loading: state.focus.loading
+      tasks: state.focus.tasks, habits: state.focus.habits, log: state.focus.log, loading: state.focus.loading
     });
   }
   if (route.name === 'rewards') {
