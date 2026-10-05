@@ -351,6 +351,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
   .home-grid, .person-grid, .rewards-grid { grid-template-columns: minmax(0, 1fr); }
   .main { padding: 24px 20px 40px; }
   .page-head h1 { font-size: 34px; }
+  .clock-time { font-size: 48px; }
+  .clock-ampm { font-size: 20px; }
 }
 @media (max-width: 600px) {
   .shell { flex-direction: column-reverse; }
