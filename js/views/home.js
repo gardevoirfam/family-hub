@@ -238,9 +238,9 @@ function renderDigest(digest) {
     </section>`;
 }
 
-// "7:58" and "AM" for the home page clock, which shows on iPad-sized screens only.
+// "7:58:09" and "AM" for the home page clock, which shows on iPad-sized screens only.
 function clockParts(d) {
-  const [time, ampm] = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).split(/\s/);
+  const [time, ampm] = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }).split(/\s/);
   return { time, ampm };
 }
 
@@ -249,7 +249,7 @@ function renderClock(d) {
   return `<div class="clock" aria-hidden="true"><span class="clock-time">${esc(time)}</span><span class="clock-ampm">${esc(ampm || '')}</span></div>`;
 }
 
-// Keeps the clock on the minute between full re-renders.
+// Ticks the clock every second between full re-renders.
 export function tickClock(d = new Date()) {
   const el = document.querySelector('.clock');
   if (!el) return;
