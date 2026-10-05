@@ -93,7 +93,7 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
         <div class="task-title">${esc(t.title)}</div>
         <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>
       </div>
-      <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">+${value}</div>
+      <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">${icons.star}+${value}</div>
     </div>`;
 }
 
@@ -131,11 +131,11 @@ function habitGrid(habits, p, today) {
           style="${done ? `background:${p.color};border-color:${p.color};color:#FFFFFF` : `border-color:${p.color}`}">${done ? check(20) : ''}</button>`;
       }
       if (h.days[key] === 'saved') {
-        return `<div class="cell saved-cell" title="Saved with points">${icons.flame}</div>`;
+        return `<div class="cell saved-cell" title="Saved with stars">${icons.flame}</div>`;
       }
       if (canSave(h, habits, p, d, today)) {
         return `<button type="button" class="cell save-cell" data-action="save-habit-day" data-id="${esc(h.id)}" data-day="${key}"
-          aria-label="Save ${esc(h.name)} on ${fmt.weekday(d)} for ${SAVE_COST} points">${icons.flame}</button>`;
+          aria-label="Save ${esc(h.name)} on ${fmt.weekday(d)} for ${SAVE_COST} stars">${icons.flame}</button>`;
       }
       const future = d > today;
       // Once the weekly goal is reached, the rest of the week is closed.
@@ -155,7 +155,7 @@ function habitGrid(habits, p, today) {
       : `${Math.min(count, goal)} of ${goal}${approved >= goal ? ' ✓' : ''}`;
     const label = (onDays ? `on ${onDays}, ` : goal === 7 ? 'every day, ' : '')
       + (goal < allowed.length ? `${goal} times a week, ` : '')
-      + `${count} done this week, ${habitPoints(h)} points` + (bonus ? `, ${bonus} point bonus for the week${doubled ? ' (doubled for the streak)' : ''}` : '')
+      + `${count} done this week, ${habitPoints(h)} stars` + (bonus ? `, ${bonus} star bonus for the week${doubled ? ' (doubled for the streak)' : ''}` : '')
       + (streak ? `, ${streak} ${streak === 1 ? 'week' : 'weeks'} in a row` : '');
     const flame = streak ? `<span class="habit-streak" title="${streak} ${streak === 1 ? 'week' : 'weeks'} in a row">${icons.flame}${streak}</span>` : '';
     return `<div class="habit-name"><span class="habit-title">${esc(h.name)}${flame}</span>
@@ -176,7 +176,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
     : `${done} of ${due.length} tasks done today`;
   const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
-    { label: 'Late', note: 'A grown-up decides the points, so still worth doing', cls: 'late', list: sections.late },
+    { label: 'Late', note: 'A grown-up decides the stars, so still worth doing', cls: 'late', list: sections.late },
     { label: 'Not done in a while', note: 'Ready again for a few days', cls: 'late', list: sections.stale },
     { label: 'Today', note: '', cls: '', list: sections.today },
     { label: 'Coming up', note: '', cls: '', list: sections.later },
@@ -191,9 +191,9 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
         <div class="person-sub">${loading.tasks ? '' : doneText}</div>
       </div>
       <div class="stats">
-        <div class="stat"><small>${icons.star}POINTS</small><b>${p.points}</b></div>
-        <div class="stat" title="Points earned since Monday"><small>THIS WEEK</small><b>${weekly ? weekly.thisWeek : '…'}</b></div>
-        <div class="stat" title="Average points earned per week over the last 4 weeks"><small>WEEKLY AVG</small><b>${!weekly ? '…' : weekly.average === null ? '–' : weekly.average}</b></div>
+        <div class="stat"><small>${icons.star}STARS</small><b>${p.points}</b></div>
+        <div class="stat" title="Stars earned since Monday"><small>THIS WEEK</small><b>${weekly ? weekly.thisWeek : '…'}</b></div>
+        <div class="stat" title="Average stars earned per week over the last 4 weeks"><small>WEEKLY AVG</small><b>${!weekly ? '…' : weekly.average === null ? '–' : weekly.average}</b></div>
       </div>
     </header>
     <div class="person-grid">

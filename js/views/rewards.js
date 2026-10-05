@@ -2,10 +2,10 @@ import { esc, avatar, icons } from '../ui.js';
 import { rewardType, unitAmount, claimLabel, maxUnits } from '../points.js';
 
 function claimStatus(c) {
-  const pts = n => `${n} ${n === 1 ? 'point' : 'points'}`;
+  const pts = n => `${n} ${n === 1 ? 'star' : 'stars'}`;
   if (c.status === 'approved') return [c.type === 'fixed' ? 'Approved' : `Approved, ${pts(c.cost)}`, '#0F766E'];
-  if (c.status === 'denied') return [c.cost ? 'Not this time, points returned' : 'Not this time', 'var(--muted)'];
-  return [c.type === 'flexible' ? 'Waiting for a parent to set the points' : 'Waiting for a parent', '#8A4B00'];
+  if (c.status === 'denied') return [c.cost ? 'Not this time, stars returned' : 'Not this time', 'var(--muted)'];
+  return [c.type === 'flexible' ? 'Waiting for a parent to set the stars' : 'Waiting for a parent', '#8A4B00'];
 }
 
 function card(r, who, qty) {
@@ -15,12 +15,12 @@ function card(r, who, qty) {
       style="${ok ? `background:${who.color};color:#FFFFFF` : ''}">${label}</button>`;
   let cost, extra = '', button;
   if (type === 'flexible') {
-    cost = 'A parent sets the points';
+    cost = 'A parent sets the stars';
     const ok = who && who.points > 0;
-    button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : 'Need some points first');
+    button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : 'Need some stars first');
   } else if (type === 'perUnit') {
     const each = Math.max(1, r.cost);
-    cost = `${each} ${each === 1 ? 'point' : 'points'} = ${esc(r.unitMinutes ? unitAmount(1, r.unit, r.unitMinutes) : r.unit || 'one')}`;
+    cost = `${each} ${each === 1 ? 'star' : 'stars'} = ${esc(r.unitMinutes ? unitAmount(1, r.unit, r.unitMinutes) : r.unit || 'one')}`;
     const max = who ? maxUnits(r, who) : 0;
     const n = Math.min(Math.max(1, qty || 1), Math.max(1, max));
     if (max > 0) {
@@ -32,9 +32,9 @@ function card(r, who, qty) {
         </div>`;
     }
     const total = n * each;
-    button = btn(max > 0, !who ? 'Pick someone' : max > 0 ? `Claim for ${esc(who.name)} (${total} ${total === 1 ? 'point' : 'points'})` : `Need ${each - who.points} more`);
+    button = btn(max > 0, !who ? 'Pick someone' : max > 0 ? `Claim for ${esc(who.name)} (${total} ${total === 1 ? 'star' : 'stars'})` : `Need ${each - who.points} more`);
   } else {
-    cost = `${r.cost} points`;
+    cost = `${r.cost} stars`;
     const ok = who && who.points >= r.cost;
     button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : `Need ${r.cost - who.points} more`);
   }
@@ -60,7 +60,7 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
       <button type="button" class="picker" data-action="pick-claimer" data-id="${esc(p.id)}" aria-pressed="${on}"
         style="${on ? `background:${p.soft};border-color:${p.color}` : ''}">
         ${avatar(p, 40)}
-        <span class="picker-text"><b>${esc(p.name)}</b><span>${p.points} points</span></span>
+        <span class="picker-text"><b>${esc(p.name)}</b><span>${p.points} stars</span></span>
       </button>`;
   }).join('');
 
@@ -87,7 +87,7 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
   return `
     <header class="page-head" style="margin-bottom:22px">
       <h1>Rewards</h1>
-      <p class="lede" style="margin:6px 0 0;font-size:17px;color:var(--muted)">Finish tasks on time and keep your habits going to earn points.</p>
+      <p class="lede" style="margin:6px 0 0;font-size:17px;color:var(--muted)">Finish tasks on time and keep your habits going to earn stars.</p>
     </header>
     ${people.length ? `<div class="pickers" role="group" aria-label="Who is claiming">${pickers}</div>` : ''}
     <div class="rewards-grid">
@@ -96,10 +96,10 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
       </section>
       <div class="stack" style="gap:16px">
         <section class="card side">
-          <h2>How points work</h2>
-          <div class="kv"><span>Task done on time</span><b>Full points</b></div>
+          <h2>How stars work</h2>
+          <div class="kv"><span>Task done on time</span><b>Full stars</b></div>
           <div class="kv"><span>Task done late</span><b>A parent decides</b></div>
-          <div class="kv"><span>Habit ticked</span><b>Its points</b></div>
+          <div class="kv"><span>Habit ticked</span><b>Its stars</b></div>
           <div class="kv"><span>Habit's weekly goal met</span><b>Its bonus</b></div>
         </section>
         <section class="card side">

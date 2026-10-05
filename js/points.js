@@ -200,7 +200,7 @@ function pointsForTask(task, people, done, at, doneAt, award = null) {
   // Unticking takes back what ticking gave, judged by when it was ticked.
   const late = isLate(task, at);
   const value = award ?? taskValue(task, at);
-  const reason = `${task.title} (${done ? (late ? (value ? 'late, points given by a parent' : 'late') : 'on time') : 'unticked'})`;
+  const reason = `${task.title} (${done ? (late ? (value ? 'late, stars given by a parent' : 'late') : 'on time') : 'unticked'})`;
   const changes = people.map(person => {
     const delta = done ? value : -Math.min(value, person.points);
     return { person, delta };

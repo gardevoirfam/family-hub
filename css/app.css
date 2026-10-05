@@ -207,6 +207,7 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .bar > div { height: 100%; border-radius: 6px; }
 .member-foot { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
 .member-foot b { color: var(--ink); font-weight: 800; }
+.star-count { display: inline-flex; align-items: center; gap: 4px; }
 .member-jobs { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .member-jobs li { display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink-2); }
 .member-jobs li.done .job-title { color: var(--muted); text-decoration: line-through; }
@@ -250,7 +251,7 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .task.done .task-title { text-decoration: line-through; color: var(--muted-2); }
 .task-due { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--muted); }
 .task-due.late { color: var(--danger); }
-.pts { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; font-size: 15px; font-weight: 800; background: var(--track); color: var(--muted); }
+.pts { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 999px; font-size: 15px; font-weight: 800; background: var(--track); color: var(--muted); }
 
 .habit-grid { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 40px); column-gap: 6px; row-gap: 12px; align-items: center; }
 .wd { text-align: center; font-size: 13px; font-weight: 800; color: var(--muted-2); }
