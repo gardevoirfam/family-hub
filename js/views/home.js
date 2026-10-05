@@ -238,13 +238,37 @@ function renderDigest(digest) {
     </section>`;
 }
 
+// "7:58" and "AM" for the home page clock, which shows on iPad-sized screens only.
+function clockParts(d) {
+  const [time, ampm] = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).split(/\s/);
+  return { time, ampm };
+}
+
+function renderClock(d) {
+  const { time, ampm } = clockParts(d);
+  return `<div class="clock" aria-hidden="true"><span class="clock-time">${esc(time)}</span><span class="clock-ampm">${esc(ampm || '')}</span></div>`;
+}
+
+// Keeps the clock on the minute between full re-renders.
+export function tickClock(d = new Date()) {
+  const el = document.querySelector('.clock');
+  if (!el) return;
+  const { time, ampm } = clockParts(d);
+  const t = el.querySelector('.clock-time');
+  if (t.textContent !== time) t.textContent = time;
+  el.querySelector('.clock-ampm').textContent = ampm || '';
+}
+
 export function renderHome({ now, today, dayStart, dayEnd, people, events, tasks, loading, digest, openEvent, weather }) {
   const peopleById = new Map(people.map(p => [p.id, p]));
   const todays = todaysTasks(tasks.map(t => taskView(t, now)), dayStart, dayEnd);
   return `
-    <header class="page-head">
-      <div class="eyebrow">${esc(fmt.longDate(today))}</div>
-      <h1>${greeting(now)}, family</h1>
+    <header class="page-head home-head">
+      <div>
+        <div class="eyebrow">${esc(fmt.longDate(today))}</div>
+        <h1>${greeting(now)}, family</h1>
+      </div>
+      ${renderClock(new Date())}
     </header>
     ${renderWeather(weather, now, today)}
     <div class="home-grid">
