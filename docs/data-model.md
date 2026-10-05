@@ -4,6 +4,8 @@ All data lives in Cloud Firestore in the `familyhub-10926` project. The Claude t
 login creates and edits content; the iPad login reads it and makes small writes.
 The Firestore rules (kept privately) enforce exactly which fields the iPad may change.
 
+Fields are named `points` (and the log `pointsLog`), but the app shows them to the family as **stars**. Any text the task writes that people see (reward details, messages) should say stars.
+
 Dates are Firestore `Timestamp`s. Document ids are free-form unless noted; short
 readable ids (for example `maya`) make the data easier to work with.
 

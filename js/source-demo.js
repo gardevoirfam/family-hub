@@ -73,7 +73,7 @@ const habits = [
 
 const rewards = [
   { id: 'r1', title: 'Screen time', detail: 'Tablet, TV or games.', type: 'perUnit', cost: 1, unit: '15 minutes', unitMinutes: 15, active: true },
-  { id: 'r7', title: 'Pokémon pack', detail: 'A parent sets the points.', type: 'flexible', active: true },
+  { id: 'r7', title: 'Pokémon pack', detail: 'A parent sets the stars.', type: 'flexible', active: true },
   { id: 'r2', title: "Pick what's for dinner", detail: 'Any night this week.', cost: 75, active: true },
   { id: 'r3', title: 'Stay up 30 minutes late', detail: 'Friday or Saturday night.', cost: 100, active: true },
   { id: 'r4', title: 'Choose movie night', detail: 'You pick the movie and the snack.', cost: 120, active: true },

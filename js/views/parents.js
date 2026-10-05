@@ -17,7 +17,7 @@ function pinPad({ pin, pinError, hasPin }) {
     <div class="pin">
       <div class="pin-icon">${icons.lock}</div>
       <h2>Parents only</h2>
-      <p class="note" style="max-width:380px;font-size:16px">Enter the PIN to change points or approve rewards.</p>
+      <p class="note" style="max-width:380px;font-size:16px">Enter the PIN to change stars or approve rewards.</p>
       <div class="pin-dots" aria-label="${pin.length} of 4 digits entered">
         ${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? 'on' : ''}"></span>`).join('')}
       </div>
@@ -59,28 +59,28 @@ function claimRow(c, p, edits) {
     return `
       <div class="adjust">
         ${avatar(p, 40)}
-        <div class="claim-body" style="flex:1"><b>${esc(c.title)}</b><span>${esc(p.name)} spent ${c.cost} points</span></div>
+        <div class="claim-body" style="flex:1"><b>${esc(c.title)}</b><span>${esc(p.name)} spent ${c.cost} stars</span></div>
         ${decline}
         <button type="button" class="btn-approve" data-action="decide" data-id="${esc(c.id)}" data-status="approved">Approve</button>
       </div>`;
   }
   const d = claimDraft(c, edits);
   const total = d.quantity * d.each;
-  // Points already spent at claim time count toward the total.
+  // Stars already spent at claim time count toward the total.
   const short = total - c.cost - (p.points || 0);
-  const pts = n => `${n} ${n === 1 ? 'point' : 'points'}`;
+  const pts = n => `${n} ${n === 1 ? 'star' : 'stars'}`;
   const sub = c.type === 'flexible'
     ? `${esc(p.name)} has ${pts(p.points || 0)}`
     : `${esc(p.name)} asked for ${esc(unitAmount(c.quantity, c.unit, c.unitMinutes))} and spent ${pts(c.cost)}`;
   const editor = c.type === 'flexible'
     ? `
         <div class="claim-edit">
-          <span class="claim-edit-label">Points</span>
-          ${stepBtn(c, 'each', -10, 'Take off 10 points', d.each < 10)}
-          ${stepBtn(c, 'each', -1, 'Take off 1 point', d.each < 1)}
+          <span class="claim-edit-label">Stars</span>
+          ${stepBtn(c, 'each', -10, 'Take off 10 stars', d.each < 10)}
+          ${stepBtn(c, 'each', -1, 'Take off 1 star', d.each < 1)}
           <b class="claim-edit-val">${d.each}</b>
-          ${stepBtn(c, 'each', 1, 'Add 1 point')}
-          ${stepBtn(c, 'each', 10, 'Add 10 points')}
+          ${stepBtn(c, 'each', 1, 'Add 1 star')}
+          ${stepBtn(c, 'each', 10, 'Add 10 stars')}
         </div>`
     : `
         <div class="claim-edit">
@@ -88,10 +88,10 @@ function claimRow(c, p, edits) {
           ${stepBtn(c, 'quantity', -1, 'One less', d.quantity <= 1)}
           <b class="claim-edit-val">${d.quantity}</b>
           ${stepBtn(c, 'quantity', 1, 'One more')}
-          <span class="claim-edit-label">Points each</span>
-          ${stepBtn(c, 'each', -1, 'One point less each', d.each < 1)}
+          <span class="claim-edit-label">Stars each</span>
+          ${stepBtn(c, 'each', -1, 'One star less each', d.each < 1)}
           <b class="claim-edit-val">${d.each}</b>
-          ${stepBtn(c, 'each', 1, 'One point more each')}
+          ${stepBtn(c, 'each', 1, 'One star more each')}
         </div>`;
   const summary = c.type === 'flexible'
     ? `Take ${pts(total)}`
@@ -111,7 +111,7 @@ function claimRow(c, p, edits) {
     </div>`;
 }
 
-// The points a parent will give each person for a late task: their edits so
+// The stars a parent will give each person for a late task: their edits so
 // far, or 0.
 export function lateTaskDraft(task, edits = {}) {
   const d = edits['task:' + task.id];
@@ -138,7 +138,7 @@ function pendingTaskRow(t, who, edits) {
       </div>`;
   }
   const award = lateTaskDraft(t, edits);
-  const pts = n => `${n} ${n === 1 ? 'point' : 'points'}`;
+  const pts = n => `${n} ${n === 1 ? 'star' : 'stars'}`;
   return `
     <div class="adjust claim-flex">
       <div class="claim-flex-top">
@@ -146,12 +146,12 @@ function pendingTaskRow(t, who, edits) {
         <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${names} · done late, worth +${t.points}${each} on time</span></div>
       </div>
       <div class="claim-edit">
-        <span class="claim-edit-label">Points</span>
-        ${lateStepBtn(t, -1, 'One point less', award < 1)}
+        <span class="claim-edit-label">Stars</span>
+        ${lateStepBtn(t, -1, 'One star less', award < 1)}
         <b class="claim-edit-val">${award}</b>
-        ${lateStepBtn(t, 1, 'One point more')}
-        <button type="button" class="btn-outline small" data-action="late-task-full" data-id="${esc(t.id)}" ${award === t.points ? 'disabled' : ''}>Full points</button>
-        <button type="button" class="btn-outline small" data-action="late-task-none" data-id="${esc(t.id)}" ${award === 0 ? 'disabled' : ''}>No points</button>
+        ${lateStepBtn(t, 1, 'One star more')}
+        <button type="button" class="btn-outline small" data-action="late-task-full" data-id="${esc(t.id)}" ${award === t.points ? 'disabled' : ''}>Full stars</button>
+        <button type="button" class="btn-outline small" data-action="late-task-none" data-id="${esc(t.id)}" ${award === 0 ? 'disabled' : ''}>No stars</button>
       </div>
       <div class="claim-flex-top">
         <span class="claim-total" style="flex:1">Give ${pts(award)}${each}</span>
@@ -171,14 +171,14 @@ function controls({ people, claims, approvalHabits = [], pendingTasks = [], log,
         <button type="button" class="btn-dark" data-action="close-parents">Lock and close</button>
       </div>
       <section class="stack" style="gap:10px">
-        <h3>Adjust points</h3>
+        <h3>Adjust stars</h3>
         ${people.map(p => `
           <div class="adjust">
             ${avatar(p, 40)}
             <span class="adjust-name">${esc(p.name)}</span>
-            <span class="adjust-pts">${p.points} pts</span>
-            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="-1" aria-label="Take 1 point from ${esc(p.name)}">−1</button>
-            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="1" aria-label="Give ${esc(p.name)} 1 point">+1</button>
+            <span class="adjust-pts">${p.points} stars</span>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="-1" aria-label="Take 1 star from ${esc(p.name)}">−1</button>
+            <button type="button" class="step" data-action="adjust" data-id="${esc(p.id)}" data-delta="1" aria-label="Give ${esc(p.name)} 1 star">+1</button>
           </div>`).join('') || '<p class="note">No one is set up yet.</p>'}
       </section>
       ${pendingTasks.length ? `

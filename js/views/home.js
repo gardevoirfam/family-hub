@@ -128,7 +128,7 @@ function renderJobs(people, tasks, peopleById, dayStart) {
           <div class="member-top"><b>${esc(p.name)}</b><span>${leftText}</span></div>
           <div class="bar"><div style="width:${pct}%;background:${p.color}"></div></div>
           ${jobList(mine, p, peopleById, dayStart)}
-          <div class="member-foot"><span>${done} of ${mine.length} done</span><b>${p.points} pts</b></div>
+          <div class="member-foot"><span>${done} of ${mine.length} done</span><b class="star-count">${icons.star}${p.points} stars</b></div>
         </div>
       </a>`;
   }).join('');

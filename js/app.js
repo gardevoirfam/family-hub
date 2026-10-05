@@ -153,7 +153,7 @@ function syncFocus(route, { refresh = false } = {}) {
     state.focus.loading.habits = false;
     render();
   }, onDataError));
-  // This week and the four full weeks before it, for the weekly points.
+  // This week and the four full weeks before it, for the weekly stars.
   focusUnsubs.push(source.watchPointsLog(addDays(weekStart(new Date()), -28), ({ first, entries }) => {
     if (state.focus.id !== id) return;
     state.focus.log = { first, entries: entries.filter(e => e.personId === id) };
@@ -242,7 +242,7 @@ async function handleAction(el) {
     const type = rewardType(reward);
     if (type === 'flexible') {
       if (person.points <= 0) return;
-      return save(claimChange(reward, person), 'Claimed! A parent will set the points.');
+      return save(claimChange(reward, person), 'Claimed! A parent will set the stars.');
     }
     if (type === 'perUnit') {
       const max = maxUnits(reward, person);
@@ -273,7 +273,7 @@ async function handleAction(el) {
     if (person && person.points - change.delta < 0) return;
     const total = quantity * each;
     const settled = { ...claim, quantity, each, cost: total };
-    state.parents.log = [`${person ? person.name : 'Someone'}: ${claimLabel(settled)} approved, ${total} ${total === 1 ? 'point' : 'points'}`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${person ? person.name : 'Someone'}: ${claimLabel(settled)} approved, ${total} ${total === 1 ? 'star' : 'stars'}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if (action === 'adjust' && state.parents.unlocked) {
@@ -282,7 +282,7 @@ async function handleAction(el) {
     const change = adjustChange(person, Number(el.dataset.delta));
     if (!change.delta) return;
     const sign = change.delta > 0 ? '+' : '−';
-    state.parents.log = [`${person.name}: ${sign}${Math.abs(change.delta)} ${Math.abs(change.delta) === 1 ? "point" : "points"} (now ${change.person.points})`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${person.name}: ${sign}${Math.abs(change.delta)} ${Math.abs(change.delta) === 1 ? "star" : "stars"} (now ${change.person.points})`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if ((action === 'late-task-edit' || action === 'late-task-full' || action === 'late-task-none') && state.parents.unlocked) {
@@ -304,7 +304,7 @@ async function handleAction(el) {
     const approve = el.dataset.status === 'approved';
     const change = approveTaskChange(task, people, approve, new Date(), lateTaskDraft(task, state.parents.edits));
     const names = people.map(p => p.name).join(' and ');
-    state.parents.log = [`${names}: ${task.title} ${approve ? `approved, +${change.delta} ${change.delta === 1 ? 'point' : 'points'}${people.length > 1 ? ' each' : ''}` : 'not approved'}`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${names}: ${task.title} ${approve ? `approved, +${change.delta} ${change.delta === 1 ? 'star' : 'stars'}${people.length > 1 ? ' each' : ''}` : 'not approved'}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if (action === 'decide-habit' && state.parents.unlocked) {
@@ -314,7 +314,7 @@ async function handleAction(el) {
     if (!habit || !person || habit.days[day] !== 'pending') return;
     const approve = el.dataset.status === 'approved';
     const change = approveHabitChange(habit, person, day, approve);
-    state.parents.log = [`${person.name}: ${habit.name} ${approve ? `approved, +${change.delta} points` : 'not approved'}`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${person.name}: ${habit.name} ${approve ? `approved, +${change.delta} stars` : 'not approved'}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if (action === 'decide' && state.parents.unlocked) {
@@ -323,7 +323,7 @@ async function handleAction(el) {
     const status = el.dataset.status;
     const person = personById(claim.personId);
     const who = person ? person.name : 'Someone';
-    state.parents.log = [`${who}: ${claimLabel(claim)} ${status === 'approved' ? 'approved' : claim.cost ? `declined, ${claim.cost} points returned` : 'declined'}`, ...state.parents.log].slice(0, 4);
+    state.parents.log = [`${who}: ${claimLabel(claim)} ${status === 'approved' ? 'approved' : claim.cost ? `declined, ${claim.cost} stars returned` : 'declined'}`, ...state.parents.log].slice(0, 4);
     return save(decideChange(claim, person, status));
   }
 
@@ -345,7 +345,7 @@ async function handleAction(el) {
     const change = taskChange(task, people, status === 'open');
     const names = people.map(p => p.name).join(' and ');
     if (change.pending) showToast(`${task.title}: waiting for a grown-up to OK it`);
-    else if (change.delta > 0) showToast(`Nice work, ${names}! +${change.delta} ${change.delta === 1 ? 'point' : 'points'}${people.length > 1 ? ' each' : ''}`);
+    else if (change.delta > 0) showToast(`Nice work, ${names}! +${change.delta} ${change.delta === 1 ? 'star' : 'stars'}${people.length > 1 ? ' each' : ''}`);
     return save(change);
   }
   if (action === 'toggle-habit') {
@@ -354,8 +354,8 @@ async function handleAction(el) {
     const done = !habit.days[dayKey()];
     const change = habitChange(habit, state.focus.habits, person, done);
     if (change.pending) showToast(`${habit.name}: waiting for a grown-up to OK it`);
-    else if (change.bonus) showToast(`${habit.name} goal met this week! +${change.delta} points`);
-    else if (done) showToast(`${habit.name} done! +${change.delta} points`);
+    else if (change.bonus) showToast(`${habit.name} goal met this week! +${change.delta} stars`);
+    else if (done) showToast(`${habit.name} done! +${change.delta} stars`);
     return save(change);
   }
   if (action === 'save-habit-day') {
@@ -365,7 +365,7 @@ async function handleAction(el) {
     const [y, m, d] = day.split('-').map(Number);
     const date = new Date(y, m - 1, d, 12);
     if (!canSave(habit, state.focus.habits, person, date)) return;
-    if (!confirm(`Save ${habit.name} on ${date.toLocaleDateString('en-US', { weekday: 'long' })} for ${SAVE_COST} points? You can save one day a week.`)) return;
+    if (!confirm(`Save ${habit.name} on ${date.toLocaleDateString('en-US', { weekday: 'long' })} for ${SAVE_COST} stars? You can save one day a week.`)) return;
     const change = saveDayChange(habit, state.focus.habits, person, day);
     showToast(change.bonus ? `${habit.name} saved and goal met!` : `${habit.name} saved!`);
     return save(change);
