@@ -118,6 +118,14 @@ h1, h2, h3 { margin: 0; }
 .page-head { margin-bottom: 26px; }
 .eyebrow { font-size: 15px; font-weight: 800; letter-spacing: 0.06em; color: var(--muted-2); text-transform: uppercase; }
 .page-head h1 { margin-top: 4px; font-family: var(--display); font-weight: 600; font-size: 44px; line-height: 1.1; }
+.home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.clock { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; font-family: var(--display); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.clock-time { font-size: 64px; }
+.clock-ampm { font-size: 24px; color: var(--muted-2); }
+/* Phones (portrait or landscape) skip the clock; the status bar already has one. */
+@media (max-width: 600px), (max-height: 500px) {
+  .clock { display: none; }
+}
 .home-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .events { display: flex; flex-direction: column; gap: 22px; }
 .day { display: flex; flex-direction: column; gap: 10px; }

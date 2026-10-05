@@ -1,7 +1,7 @@
 import { esc, avatar, colorsFor, icons } from './ui.js';
 import { startOfDay, addDays, dayKey, fmt } from './dates.js';
 import { renderLogin } from './views/login.js';
-import { renderHome } from './views/home.js';
+import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
@@ -569,5 +569,7 @@ setInterval(() => {
   }
   render();
 }, 60 * 1000);
+
+setInterval(tickClock, 1000);
 
 boot();
