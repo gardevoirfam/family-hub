@@ -156,7 +156,7 @@ export const source = {
   watchPersonTasks(personId, cb) { return watch(() => cb(copy(tasks.filter(t => t.personIds.includes(personId))))); },
   watchHabits(personId, cb) { return watch(() => cb(copy(habits.filter(h => h.personId === personId)))); },
   watchPendingTasks(cb) { return watch(() => cb(copy(tasks.filter(t => t.pendingAt)))); },
-  watchApprovalHabits(cb) { return watch(() => cb(copy(habits.filter(h => h.needsApproval)))); },
+  watchAllHabits(cb) { return watch(() => cb(copy(habits))); },
   watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, ...r })))); },
   watchClaims(cb) { return watch(() => cb(claims.map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
   watchParentSettings(cb) {

@@ -5,7 +5,7 @@ import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, undoHabitDayChange, canUndo, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 import { loadWeather } from './weather.js';
 
@@ -19,7 +19,8 @@ const state = {
   tasks: [],
   rewards: [],
   claims: [],
-  approvalHabits: [],
+  // Everyone's habits, for the Parents dialog.
+  allHabits: [],
   pendingTasks: [],
   parentPin: { pinHash: '', pinSalt: '' },
   digest: null,
@@ -29,7 +30,7 @@ const state = {
   // How many units of a per-unit reward (such as screen time) are picked, by reward id.
   claimQty: {},
   // The Parents dialog. Unlocking lasts until it is closed.
-  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} },
+  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null },
   loading: { people: true, events: true, tasks: true, rewards: true },
   error: '',
   day: dayKey(),
@@ -104,8 +105,8 @@ function startListeners({ keepData = false } = {}) {
     state.pendingTasks = list;
     render();
   }, onDataError));
-  unsubs.push(source.watchApprovalHabits(list => {
-    state.approvalHabits = list;
+  unsubs.push(source.watchAllHabits(list => {
+    state.allHabits = list.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
     render();
   }, onDataError));
   unsubs.push(source.watchClaims(list => {
@@ -180,7 +181,7 @@ async function save(change, okToast) {
 }
 
 function closeParents() {
-  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
+  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
   render();
 }
 
@@ -210,7 +211,7 @@ async function handleAction(el) {
     return;
   }
   if (action === 'open-parents') {
-    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
+    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
     render();
     return;
   }
@@ -308,13 +309,33 @@ async function handleAction(el) {
     return save(change);
   }
   if (action === 'decide-habit' && state.parents.unlocked) {
-    const habit = state.approvalHabits.find(h => h.id === id);
+    const habit = state.allHabits.find(h => h.id === id);
     const day = el.dataset.day;
     const person = habit && personById(habit.personId);
     if (!habit || !person || habit.days[day] !== 'pending') return;
     const approve = el.dataset.status === 'approved';
     const change = approveHabitChange(habit, person, day, approve);
     state.parents.log = [`${person.name}: ${habit.name} ${approve ? `approved, +${change.delta} stars` : 'not approved'}`, ...state.parents.log].slice(0, 4);
+    return save(change);
+  }
+  if (action === 'undo-person' && state.parents.unlocked) {
+    state.parents.undoPerson = id;
+    render();
+    return;
+  }
+  if (action === 'undo-habit-day' && state.parents.unlocked) {
+    const habit = state.allHabits.find(h => h.id === id);
+    const day = el.dataset.day;
+    const person = habit && personById(habit.personId);
+    if (!habit || !person || !day) return;
+    const [y, m, d] = day.split('-').map(Number);
+    const date = new Date(y, m - 1, d, 12);
+    if (!canUndo(habit, date)) return;
+    const change = undoHabitDayChange(habit, state.allHabits.filter(h => h.personId === person.id), person, day);
+    const lost = -change.delta;
+    const stars = `${lost} ${lost === 1 ? 'star' : 'stars'}`;
+    if (!confirm(`Uncheck ${habit.name} on ${date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}? ${person.name} loses ${stars}.`)) return;
+    state.parents.log = [`${person.name}: ${habit.name} unchecked for ${fmt.weekday(date)}, −${stars}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if (action === 'decide' && state.parents.unlocked) {
@@ -464,7 +485,7 @@ function render() {
   s.toast.hidden = !state.toast;
   s.toast.textContent = state.toast;
   s.overlay.innerHTML = state.parents.open
-    ? renderParents({ ...state.parents, people: state.people, claims: state.claims, approvalHabits: state.approvalHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash })
+    ? renderParents({ ...state.parents, people: state.people, claims: state.claims, allHabits: state.allHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash })
     : '';
 }
 
@@ -500,7 +521,7 @@ async function boot() {
     if (!user) {
       stopListeners();
       stopFocus();
-      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {} };
+      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
       state.people = []; state.events = []; state.tasks = [];
     }
     render();

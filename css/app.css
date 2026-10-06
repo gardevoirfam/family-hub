@@ -372,3 +372,9 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
   .adjust-pts { width: auto; }
   .dialog { padding: 22px; }
 }
+
+/* Parents: unchecking past habit days */
+.undo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border-radius: 16px; background: var(--soft); }
+.undo-row .claim-body { flex: 1; min-width: 160px; }
+.undo-days { display: flex; flex-wrap: wrap; gap: 8px; }
+.undo-day { height: 44px; padding: 0 14px; border-radius: 12px; border: 2px solid; background: #FFFFFF; font-size: 15px; font-weight: 800; }
