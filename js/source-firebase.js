@@ -185,10 +185,10 @@ export const source = {
     return fs.onSnapshot(q, snap => cb(snap.docs.map(toTask)), onError);
   },
 
-  // Habits whose ticks wait for a grown-up's OK, for the Parents panel.
-  watchApprovalHabits(cb, onError) {
-    const q = fs.query(fs.collection(db, 'habits'), fs.where('needsApproval', '==', true));
-    return fs.onSnapshot(q, snap => cb(snap.docs.map(habitFrom)), onError);
+  // Everyone's habits, for the Parents panel (ticks waiting for OK, and
+  // unchecking past days).
+  watchAllHabits(cb, onError) {
+    return fs.onSnapshot(fs.collection(db, 'habits'), snap => cb(snap.docs.map(habitFrom)), onError);
   },
 
   watchRewards(cb, onError) {

@@ -231,8 +231,9 @@ export function tickedLate(task) {
 
 // The points (and bonus, if this tick meets the weekly goal) for setting or
 // clearing an approved tick on `day`. A save (`saved`) costs SAVE_COST instead
-// of paying the tick's points.
-function habitPointsChange(habit, habits, person, done, day, today, saved = false) {
+// of paying the tick's points. A parent's `undo` of an earlier week can also
+// end the streak that doubled the next week's bonus, so that extra comes back too.
+function habitPointsChange(habit, habits, person, done, day, today, { saved = false, undo = false } = {}) {
   const monday = weekStart(day);
   const key = dayKey(day);
   const mark = saved ? 'saved' : done || undefined;
@@ -245,7 +246,8 @@ function habitPointsChange(habit, habits, person, done, day, today, saved = fals
   const logs = [];
   const value = habitPoints(habit);
   let delta = saved ? -SAVE_COST : done ? value : -value;
-  logs.push({ personId: person.id, delta, reason: saved ? `Streak save: ${habit.name} (${key})` : `${habit.name} (${done ? 'done' : 'unticked'})` });
+  const what = saved ? `Streak save: ${habit.name}` : undo ? `${habit.name} (unchecked by a parent)` : `${habit.name} (${done ? 'done' : 'unticked'})`;
+  logs.push({ personId: person.id, delta, reason: saved || undo ? `${what} (${key})` : what });
   // A habit's bonus is earned by the tick that meets its weekly goal, and
   // taken back if that tick is undone. On a streak it's doubled.
   const streakBonus = weekBonus(habit, monday);
@@ -257,11 +259,20 @@ function habitPointsChange(habit, habits, person, done, day, today, saved = fals
     logs.push({ personId: person.id, delta: bonus, reason: `${habit.name} weekly goal${onStreak ? ' (streak x2)' : ''}${bonus < 0 ? ' (unticked)' : ''}` });
     delta += bonus;
   }
+  const nextMonday = addDays(monday, 7);
+  if (undo && before && !after && habitBonus(habit) && nextMonday <= weekStart(today) && goalMet(self, nextMonday)) {
+    const extra = -habitBonus(habit);
+    logs.push({ personId: person.id, delta: extra, reason: `${habit.name} streak x2 taken back (${dayKey(nextMonday)} week)` });
+    delta += extra;
+  }
   // Points never go below zero.
-  if (person.points + delta < 0) {
-    const shortBy = person.points + delta;
-    delta -= shortBy;
-    logs[logs.length - 1].delta -= shortBy;
+  // Takes the shortfall off the last entries first.
+  let shortBy = Math.min(0, person.points + delta);
+  for (let i = logs.length - 1; shortBy < 0 && i >= 0; i--) {
+    const cut = Math.max(shortBy, Math.min(0, logs[i].delta));
+    logs[i].delta -= cut;
+    delta -= cut;
+    shortBy -= cut;
   }
   return {
     person: { id: person.id, points: person.points + delta, streak: bestStreak(next, today) },
@@ -287,7 +298,7 @@ export function habitChange(habit, habits, person, done, today = new Date()) {
 // week. It counts toward the goal, streak and bonus, but pays no tick points.
 export function saveDayChange(habit, habits, person, day, today = new Date()) {
   const [y, m, d] = day.split('-').map(Number);
-  return { habit: { id: habit.id, day, done: true, value: 'saved' }, ...habitPointsChange(habit, habits, person, true, new Date(y, m - 1, d, 12), today, true) };
+  return { habit: { id: habit.id, day, done: true, value: 'saved' }, ...habitPointsChange(habit, habits, person, true, new Date(y, m - 1, d, 12), today, { saved: true }) };
 }
 
 // A grown-up's answer to a pending tick on `day` (a YYYY-MM-DD key):
@@ -299,6 +310,21 @@ export function approveHabitChange(habit, person, day, approve, today = new Date
   // The saved streak needs all of a person's habits, which aren't loaded here.
   change.person.streak = person.streak;
   return { habit: { id: habit.id, day, done: true }, ...change };
+}
+
+// Whether a parent can uncheck day d of a habit: an approved tick (not a
+// pending one or a save) from last week or earlier this week.
+export function canUndo(habit, d, today = new Date()) {
+  return habit.days[dayKey(d)] === true && startOfDay(d) < startOfDay(today)
+    && startOfDay(d) >= addDays(weekStart(today), -7);
+}
+
+// A parent unchecking a past day (a YYYY-MM-DD key) that wasn't really done:
+// takes back its stars, the weekly bonus if the goal is no longer met, and
+// updates the streak. `habits` are all of the person's habits.
+export function undoHabitDayChange(habit, habits, person, day, today = new Date()) {
+  const [y, m, d] = day.split('-').map(Number);
+  return { habit: { id: habit.id, day, done: false }, ...habitPointsChange(habit, habits, person, false, new Date(y, m - 1, d, 12), today, { undo: true }) };
 }
 
 // Reward types: "fixed" costs `cost` points; "flexible" has its points set by a

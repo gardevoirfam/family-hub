@@ -49,7 +49,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `weekdays` | string[] | Optional. The days the habit is for, e.g. `["sat"]` or `["mon", "wed", "fri"]`. It can only be ticked on those days; other days are blank. Without it, every day. `perWeek` defaults to the number of these days. |
 | `needsApproval` | bool | Optional. When `true`, a tick is saved as `"pending"` in `days` and earns nothing until a grown-up approves it in the Parents panel (then it becomes `true` and the points, plus any bonus, are paid). Declining clears it. |
 | `bonus`    | int    | Optional. Extra points earned by the tick that meets this habit's weekly goal (default 0, no bonus). Doubled (not compounding) when the habit also met its goal the week before, e.g. 4, 8, 8. Unticking that day takes it back. |
-| `days`     | map    | Keys are local dates `YYYY-MM-DD`, value `true` when done (or `"pending"` while waiting for approval), or `"saved"` for a missed day filled in with 4 points (counts toward the goal, streak and bonus; one per person per week, across all habits, logged as "Streak save: ..."). The iPad may change it. |
+| `days`     | map    | Keys are local dates `YYYY-MM-DD`, value `true` when done (or `"pending"` while waiting for approval), or `"saved"` for a missed day filled in with 4 points (counts toward the goal, streak and bonus; one per person per week, across all habits, logged as "Streak save: ..."). A parent can uncheck a `true` day from last week or earlier this week in Parent controls; that takes back its points and any weekly bonus it earned (logged as "... (unchecked by a parent) (YYYY-MM-DD)"). The iPad may change it. |
 
 ## `events/{eventId}`
 
