@@ -14,7 +14,8 @@ Commands:
   schedule get                      print the chore schedule as JSON
   schedule set FILE [--dry-run]     replace the chore schedule with FILE (JSON)
   events set FILE [--dry-run]       make the hub's upcoming calendar events match
-                                    FILE (JSON list copied from Google Calendar)
+                                    FILE (JSON list copied from Google Calendar), then
+                                    make the "be ready" tasks for them (schedule `ready`)
   digest set FILE [--dry-run]       replace the weekly digest on the home page
                                     with FILE (JSON: title and sections)
   rewards get                       print the rewards catalog as JSON
@@ -236,6 +237,23 @@ def check_schedule(schedule):
                 problems.append(f'{name}: repeat must be "daily" or "weekly"')
         except (KeyError, ValueError):
             problems.append(f'{name}: due/opens/days are not in the right format')
+    for i, r in enumerate(schedule.get('ready', [])):
+        name = r.get('id') or f'ready rule #{i + 1}'
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', r.get('id', '')):
+            problems.append(f'{name}: id must be lowercase letters, digits and dashes')
+        if r.get('id') in ids:
+            problems.append(f'{name}: id is used twice')
+        ids.add(r.get('id'))
+        if not r.get('title'):
+            problems.append(f'{name}: missing title')
+        if not r.get('match') or not isinstance(r['match'], list):
+            problems.append(f'{name}: match must list at least one word to look for in event titles')
+        if not isinstance(r.get('points'), int) or r['points'] < 0:
+            problems.append(f'{name}: points must be a whole number')
+        if not r.get('personIds'):
+            problems.append(f'{name}: personIds must list at least one person')
+        if not isinstance(r.get('minutesBefore', 30), int):
+            problems.append(f'{name}: minutesBefore must be a whole number')
     return problems
 
 
@@ -353,6 +371,73 @@ def cmd_events(hub, args):
         if not args.dry_run:
             hub.delete(f'events/{doc_id}')
     print(f'{len(wanted)} calendar event(s) saved, {len(stale)} removed' + (' (dry run)' if args.dry_run else '') + '.')
+    sync_ready(hub, schedule, wanted, tz, now, args.dry_run)
+
+
+def ready_rule(rules, event):
+    """The first ready rule whose words appear in the event's title. Closures
+    ("No Taekwondo – ...") and cancelled or all-day events get none."""
+    title = event['title'].lower()
+    if event['allDay'] or title.startswith('no ') or 'cancel' in title:
+        return None
+    for r in rules:
+        if any(w.lower() in title for w in r['match']):
+            return r
+    return None
+
+
+def sync_ready(hub, schedule, events, tz, now, dry_run):
+    """Makes a "be ready" task for each upcoming calendar event that matches a rule
+    in settings/schedule `ready`, per person, due minutesBefore the event starts.
+    Tasks follow their event: moved when it moves, removed when it goes away,
+    unless someone already ticked them."""
+    rules = [r for r in schedule.get('ready', []) if not r.get('paused')]
+    wanted = {}
+    for event_id, e in events.items():
+        r = ready_rule(rules, e)
+        if not r or e['start'] <= now:
+            continue
+        people = [p for p in r['personIds'] if not e['who'] or p in e['who']] or list(r['personIds'])
+        for person in people:
+            doc_id = f'ready-{person}-{event_id[4:]}'[:150]
+            wanted[doc_id] = {
+                'title': r['title'],
+                'personId': person,
+                'personIds': [person],
+                'due': e['start'] - dt.timedelta(minutes=r.get('minutesBefore', 30)),
+                'points': r['points'],
+                'done': False,
+                'doneAt': None,
+                'readyId': r['id'],
+                'eventId': event_id,
+            }
+    existing = {i: d for i, d in hub.list('tasks') if d.get('readyId')}
+    verb = 'would ' if dry_run else ''
+    made = moved = removed = 0
+    for doc_id, task in wanted.items():
+        old = existing.get(doc_id)
+        when = task['due'].astimezone(tz).strftime('%a %b %d %H:%M')
+        if old and (old.get('done') or old.get('pendingAt')):
+            continue
+        if old and (old.get('title'), old.get('points'), parse_when(old['due'], tz)[0]) == (task['title'], task['points'], task['due']):
+            continue
+        print(f"{verb}{'update' if old else 'create'} {doc_id}: {task['title']} due {when}")
+        if old:
+            moved += 1
+        else:
+            made += 1
+        if not dry_run:
+            hub.set(f'tasks/{doc_id}', task)
+    for doc_id, old in existing.items():
+        if doc_id in wanted or old.get('done') or old.get('pendingAt'):
+            continue
+        if not old.get('due') or parse_when(old['due'], tz)[0] <= now:
+            continue
+        print(f"{verb}remove {doc_id}: {old.get('title')}")
+        removed += 1
+        if not dry_run:
+            hub.delete(f'tasks/{doc_id}')
+    print(f'Be-ready tasks: {made} created, {moved} updated, {removed} removed' + (' (dry run)' if dry_run else '') + '.')
 
 
 def cmd_digest(hub, args):
