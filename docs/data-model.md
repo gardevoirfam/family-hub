@@ -36,7 +36,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `needsApproval` | bool | Optional. Ticking sets `pendingAt` instead of `done`; a grown-up approves it in the Parents panel, which pays the points (judged by when it was ticked) and starts any cooldown then. |
 | `pendingAt` | timestamp | Set by the iPad while waiting for approval, `null` otherwise. A task ticked after its `due` also waits here, and the parent picks its points (0 by default, or full points). |
 | `choreId`  | string    | Set on jobs made from the chore schedule (see `settings/schedule`). Their id is `<choreId>-<due date>`. |
-| `readyId`  | string    | Set on "be ready" tasks made from a calendar event (schedule `ready` rules). Their id is `ready-<personId>-<calendar event id>`. |
+| `readyId`  | string    | Set on tasks made from a calendar event (schedule `ready` rules). Their id is `ready-<personId>-<calendar event id>` (before the event) or `packup-<personId>-<calendar event id>` (after it). |
 | `eventId`  | string    | The `events` document a "be ready" task belongs to. |
 
 ## `habits/{habitId}`
@@ -62,6 +62,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `notes`  | string    | Optional details shown when the event is tapped on the home page, such as gear to bring. Line breaks are kept. |
 | `start`  | timestamp | Start time. For all-day events use local midnight and set `allDay`. |
 | `allDay` | bool      | Optional. |
+| `end`    | timestamp | Optional end time of a timed event. |
 | `who`    | string[]  | Person ids. Empty (or `["all"]`) means everyone. |
 | `source` | string    | `calendar` for events copied from Google Calendar (id `cal-<calendar event id>`). The copy step updates and removes only these. |
 
@@ -150,14 +151,19 @@ App settings, written by the Claude task login.
 Each time `tools/hubtask.py events set` copies the calendar, every upcoming timed event
 whose title contains one of a rule's `match` words gets one task per person in
 `personIds` (only those the event names in `who`, when it names any), due
-`minutesBefore` (default 30) before it starts. Closures ("No Taekwondo – ...") and
+`minutesBefore` (default 30) before it starts. A rule with `minutesAfter` instead
+makes a task that opens when the event ends and is due that many minutes later; the
+end comes from the event's `end`, else its start plus the rule's `durationMinutes`
+(no task when neither is known). Closures ("No Taekwondo – ...") and
 all-day events are skipped. The tasks move with their event and are removed when it
 goes away, unless they are already ticked.
 
 ```json
 "ready": [
   { "id": "ready-tkd", "title": "Be ready for Taekwondo", "match": ["taekwondo", "tkd"],
-    "personIds": ["evelyn", "wesley"], "points": 1, "minutesBefore": 30 }
+    "personIds": ["evelyn", "wesley"], "points": 1, "minutesBefore": 30 },
+  { "id": "packup-tkd", "title": "Put away your Taekwondo things", "match": ["taekwondo", "tkd"],
+    "personIds": ["evelyn", "wesley"], "points": 1, "minutesAfter": 60, "durationMinutes": 45 }
 ]
 ```
 

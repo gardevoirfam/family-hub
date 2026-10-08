@@ -15,7 +15,7 @@ Commands:
   schedule set FILE [--dry-run]     replace the chore schedule with FILE (JSON)
   events set FILE [--dry-run]       make the hub's upcoming calendar events match
                                     FILE (JSON list copied from Google Calendar), then
-                                    make the "be ready" tasks for them (schedule `ready`)
+                                    make the before/after tasks for them (schedule `ready`)
   digest set FILE [--dry-run]       replace the weekly digest on the home page
                                     with FILE (JSON: title and sections)
   rewards get                       print the rewards catalog as JSON
@@ -252,8 +252,9 @@ def check_schedule(schedule):
             problems.append(f'{name}: points must be a whole number')
         if not r.get('personIds'):
             problems.append(f'{name}: personIds must list at least one person')
-        if not isinstance(r.get('minutesBefore', 30), int):
-            problems.append(f'{name}: minutesBefore must be a whole number')
+        for k in ('minutesBefore', 'minutesAfter', 'durationMinutes'):
+            if k in r and not isinstance(r[k], int):
+                problems.append(f'{name}: {k} must be a whole number')
     return problems
 
 
@@ -356,6 +357,7 @@ def cmd_events(hub, args):
             'notes': str(e.get('notes') or ''),
             'start': start,
             'allDay': bool(e.get('allDay', all_day)),
+            'end': parse_when(e['end'], tz)[0] if e.get('end') and not all_day else None,
             'who': list(e.get('who') or []),
             'source': 'calendar',
         }
@@ -374,43 +376,60 @@ def cmd_events(hub, args):
     sync_ready(hub, schedule, wanted, tz, now, args.dry_run)
 
 
-def ready_rule(rules, event):
-    """The first ready rule whose words appear in the event's title. Closures
+def ready_rules(rules, event):
+    """The ready rules whose words appear in the event's title. Closures
     ("No Taekwondo – ...") and cancelled or all-day events get none."""
     title = event['title'].lower()
     if event['allDay'] or title.startswith('no ') or 'cancel' in title:
+        return []
+    return [r for r in rules if any(w.lower() in title for w in r['match'])]
+
+
+def ready_times(rule, event):
+    """(start or None, due) of a rule's task for an event, or None when unknown.
+    With minutesAfter the task opens when the event ends (its `end`, else start
+    plus the rule's durationMinutes); otherwise it is due minutesBefore the start."""
+    if 'minutesAfter' not in rule:
+        return None, event['start'] - dt.timedelta(minutes=rule.get('minutesBefore', 30))
+    end = event.get('end')
+    if not end and 'durationMinutes' in rule:
+        end = event['start'] + dt.timedelta(minutes=rule['durationMinutes'])
+    if not end:
         return None
-    for r in rules:
-        if any(w.lower() in title for w in r['match']):
-            return r
-    return None
+    return end, end + dt.timedelta(minutes=rule['minutesAfter'])
 
 
 def sync_ready(hub, schedule, events, tz, now, dry_run):
-    """Makes a "be ready" task for each upcoming calendar event that matches a rule
-    in settings/schedule `ready`, per person, due minutesBefore the event starts.
-    Tasks follow their event: moved when it moves, removed when it goes away,
-    unless someone already ticked them."""
+    """Makes a task for each upcoming calendar event that matches a rule in
+    settings/schedule `ready`, per person: due minutesBefore the event starts, or
+    (with minutesAfter) open from its end until minutesAfter later. Tasks follow
+    their event: moved when it moves, removed when it goes away, unless someone
+    already ticked them."""
     rules = [r for r in schedule.get('ready', []) if not r.get('paused')]
     wanted = {}
     for event_id, e in events.items():
-        r = ready_rule(rules, e)
-        if not r or e['start'] <= now:
-            continue
-        people = [p for p in r['personIds'] if not e['who'] or p in e['who']] or list(r['personIds'])
-        for person in people:
-            doc_id = f'ready-{person}-{event_id[4:]}'[:150]
-            wanted[doc_id] = {
-                'title': r['title'],
-                'personId': person,
-                'personIds': [person],
-                'due': e['start'] - dt.timedelta(minutes=r.get('minutesBefore', 30)),
-                'points': r['points'],
-                'done': False,
-                'doneAt': None,
-                'readyId': r['id'],
-                'eventId': event_id,
-            }
+        for r in ready_rules(rules, e):
+            times = ready_times(r, e)
+            if not times or times[1] <= now:
+                continue
+            start, due = times
+            people = [p for p in r['personIds'] if not e['who'] or p in e['who']] or list(r['personIds'])
+            kind = 'packup' if start else 'ready'
+            for person in people:
+                doc_id = f'{kind}-{person}-{event_id[4:]}'[:150]
+                wanted[doc_id] = {
+                    'title': r['title'],
+                    'personId': person,
+                    'personIds': [person],
+                    'due': due,
+                    'points': r['points'],
+                    'done': False,
+                    'doneAt': None,
+                    'readyId': r['id'],
+                    'eventId': event_id,
+                }
+                if start:
+                    wanted[doc_id]['start'] = start
     existing = {i: d for i, d in hub.list('tasks') if d.get('readyId')}
     verb = 'would ' if dry_run else ''
     made = moved = removed = 0
@@ -419,7 +438,9 @@ def sync_ready(hub, schedule, events, tz, now, dry_run):
         when = task['due'].astimezone(tz).strftime('%a %b %d %H:%M')
         if old and (old.get('done') or old.get('pendingAt')):
             continue
-        if old and (old.get('title'), old.get('points'), parse_when(old['due'], tz)[0]) == (task['title'], task['points'], task['due']):
+        if old and (old.get('title'), old.get('points'), parse_when(old['due'], tz)[0],
+                    old.get('start') and parse_when(old['start'], tz)[0]) == \
+                (task['title'], task['points'], task['due'], task.get('start')):
             continue
         print(f"{verb}{'update' if old else 'create'} {doc_id}: {task['title']} due {when}")
         if old:
