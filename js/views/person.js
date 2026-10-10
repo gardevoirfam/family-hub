@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, canSave, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -97,10 +97,13 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
     </div>`;
 }
 
-function habitGrid(habits, p, today) {
+// The week's habit squares. Kids tap today's square; in Parent controls
+// (`parent`), any day from last Monday through today can be tapped to check
+// or uncheck it, and `weeksBack` 1 shows last week.
+export function habitGrid(habits, p, today, { parent = false, weeksBack = 0 } = {}) {
   if (!habits.length) return '<div class="empty">No habits yet.</div>';
-  // Monday to Sunday of this week.
-  const monday = addDays(today, -((today.getDay() + 6) % 7));
+  // Monday to Sunday of the week shown.
+  const monday = addDays(today, -((today.getDay() + 6) % 7) - 7 * weeksBack);
   const week = [...Array(7)].map((_, i) => addDays(monday, i));
   const todayKey = dayKey(today);
   const head = week.map(d => {
@@ -117,15 +120,22 @@ function habitGrid(habits, p, today) {
       const pending = h.days[key] === 'pending';
       // Days this habit isn't for are left blank.
       if (!habitOnDay(h, d)) return '<div class="cell off" aria-hidden="true"></div>';
+      if (parent && canParentSet(h, d, today)) {
+        const isToday = key === todayKey;
+        const label = `${esc(h.name)} on ${fmt.weekday(d)}: ${done ? 'done, tap to uncheck' : pending ? 'waiting for OK, tap to check' : 'not done, tap to check'}`;
+        const look = done ? `background:${p.color};border-color:${p.color};color:#FFFFFF` : `border-color:${p.color};color:${p.color}`;
+        return `<button type="button" class="cell ${isToday ? 'today' : 'editable'}" data-action="parent-habit-day" data-id="${esc(h.id)}" data-day="${key}"
+          aria-label="${label}" style="${look}">${done ? check(20) : pending ? hourglass : ''}</button>`;
+      }
       if (key === todayKey && !canTick(h, d)) {
         return '<div class="cell off" aria-hidden="true" title="Weekly goal already met"></div>';
       }
-      if (key === todayKey && pending) {
+      if (key === todayKey && !parent && pending) {
         return `<button type="button" class="cell today pending" data-action="toggle-habit" data-id="${esc(h.id)}"
           aria-label="${esc(h.name)} today: waiting for a grown-up's OK" style="border-color:${p.color};color:${p.color}">${hourglass}</button>`;
       }
       if (pending) return `<div class="cell pending" style="border-color:${p.color};color:${p.color}" title="Waiting for OK">${hourglass}</div>`;
-      if (key === todayKey) {
+      if (key === todayKey && !parent) {
         return `<button type="button" class="cell today" data-action="toggle-habit" data-id="${esc(h.id)}"
           aria-label="${esc(h.name)} today: ${done ? 'done' : 'not done yet'}"
           style="${done ? `background:${p.color};border-color:${p.color};color:#FFFFFF` : `border-color:${p.color}`}">${done ? check(20) : ''}</button>`;
@@ -133,7 +143,7 @@ function habitGrid(habits, p, today) {
       if (h.days[key] === 'saved') {
         return `<div class="cell saved-cell" title="Saved with stars">${icons.flame}</div>`;
       }
-      if (canSave(h, habits, p, d, today)) {
+      if (!parent && canSave(h, habits, p, d, today)) {
         return `<button type="button" class="cell save-cell" data-action="save-habit-day" data-id="${esc(h.id)}" data-day="${key}"
           aria-label="Save ${esc(h.name)} on ${fmt.weekday(d)} for ${SAVE_COST} stars">${icons.flame}</button>`;
       }

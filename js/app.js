@@ -5,7 +5,7 @@ import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, undoHabitDayChange, canUndo, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 import { loadWeather } from './weather.js';
 
@@ -30,7 +30,7 @@ const state = {
   // How many units of a per-unit reward (such as screen time) are picked, by reward id.
   claimQty: {},
   // The Parents dialog. Unlocking lasts until it is closed.
-  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null },
+  parents: { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, habitPerson: null, habitWeek: 0 },
   loading: { people: true, events: true, tasks: true, rewards: true },
   error: '',
   day: dayKey(),
@@ -181,7 +181,7 @@ async function save(change, okToast) {
 }
 
 function closeParents() {
-  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
+  state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, habitPerson: null, habitWeek: 0 };
   render();
 }
 
@@ -211,7 +211,7 @@ async function handleAction(el) {
     return;
   }
   if (action === 'open-parents') {
-    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
+    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {}, habitPerson: null, habitWeek: 0 };
     render();
     return;
   }
@@ -318,24 +318,31 @@ async function handleAction(el) {
     state.parents.log = [`${person.name}: ${habit.name} ${approve ? `approved, +${change.delta} stars` : 'not approved'}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
-  if (action === 'undo-person' && state.parents.unlocked) {
-    state.parents.undoPerson = id;
+  if (action === 'habit-person' && state.parents.unlocked) {
+    state.parents.habitPerson = id;
     render();
     return;
   }
-  if (action === 'undo-habit-day' && state.parents.unlocked) {
+  if (action === 'habit-week' && state.parents.unlocked) {
+    state.parents.habitWeek = id === '1' ? 1 : 0;
+    render();
+    return;
+  }
+  if (action === 'parent-habit-day' && state.parents.unlocked) {
     const habit = state.allHabits.find(h => h.id === id);
     const day = el.dataset.day;
     const person = habit && personById(habit.personId);
     if (!habit || !person || !day) return;
     const [y, m, d] = day.split('-').map(Number);
     const date = new Date(y, m - 1, d, 12);
-    if (!canUndo(habit, date)) return;
-    const change = undoHabitDayChange(habit, state.allHabits.filter(h => h.personId === person.id), person, day);
-    const lost = -change.delta;
-    const stars = `${lost} ${lost === 1 ? 'star' : 'stars'}`;
-    if (!confirm(`Uncheck ${habit.name} on ${date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}? ${person.name} loses ${stars}.`)) return;
-    state.parents.log = [`${person.name}: ${habit.name} unchecked for ${fmt.weekday(date)}, −${stars}`, ...state.parents.log].slice(0, 4);
+    if (!canParentSet(habit, date)) return;
+    // Tapping a checked square unchecks it; any other square (empty, or
+    // waiting for OK) gets checked.
+    const done = habit.days[day] !== true;
+    const change = parentHabitDayChange(habit, state.allHabits.filter(h => h.personId === person.id), person, day, done);
+    const n = Math.abs(change.delta);
+    const stars = `${n} ${n === 1 ? 'star' : 'stars'}`;
+    state.parents.log = [`${person.name}: ${habit.name} ${done ? 'checked' : 'unchecked'} for ${fmt.weekday(date)}, ${done ? '+' : '−'}${stars}`, ...state.parents.log].slice(0, 4);
     return save(change);
   }
   if (action === 'decide' && state.parents.unlocked) {
@@ -479,14 +486,30 @@ function render() {
   const s = ensureShell();
   const route = parseRoute();
   syncFocus(route);
-  s.nav.innerHTML = navHtml(route);
-  s.main.innerHTML = mainHtml(route);
+  setHtml(s.nav, navHtml(route));
+  setHtml(s.main, mainHtml(route));
   s.offline.hidden = navigator.onLine;
   s.toast.hidden = !state.toast;
   s.toast.textContent = state.toast;
-  s.overlay.innerHTML = state.parents.open
-    ? renderParents({ ...state.parents, people: state.people, claims: state.claims, allHabits: state.allHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash })
-    : '';
+  if (state.parents.open) {
+    // The dialog itself stays put so its scroll position survives updates.
+    if (!s.overlay.firstElementChild) {
+      s.overlay.innerHTML = '<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-label="Parent controls"></div></div>';
+    }
+    setHtml(s.overlay.querySelector('.dialog'),
+      renderParents({ ...state.parents, people: state.people, claims: state.claims, allHabits: state.allHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash }));
+  } else if (s.overlay.firstElementChild) {
+    s.overlay.innerHTML = '';
+  }
+}
+
+// Replaces an element's content only when it changed. The hub re-renders every
+// minute and on each data update, and rebuilding a scrolling area under a
+// finger freezes scrolling on the iPad.
+function setHtml(el, html) {
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
 }
 
 async function handleSignIn(username, password) {
@@ -521,7 +544,7 @@ async function boot() {
     if (!user) {
       stopListeners();
       stopFocus();
-      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, undoPerson: null };
+      state.parents = { open: false, unlocked: false, pin: '', pinError: false, log: [], edits: {}, habitPerson: null, habitWeek: 0 };
       state.people = []; state.events = []; state.tasks = [];
     }
     render();
