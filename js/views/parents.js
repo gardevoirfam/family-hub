@@ -1,6 +1,7 @@
 import { esc, avatar, icons } from '../ui.js';
-import { unitAmount, claimLabel, tickedLate, canUndo, habitPoints } from '../points.js';
-import { addDays, startOfDay, dayKey, fmt } from '../dates.js';
+import { unitAmount, claimLabel, tickedLate } from '../points.js';
+import { startOfDay } from '../dates.js';
+import { habitGrid } from './person.js';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'];
 
@@ -161,46 +162,35 @@ function pendingTaskRow(t, who, edits) {
     </div>`;
 }
 
-// Past days (last week and earlier this week) a parent can uncheck, by habit,
-// for the picked person.
-function undoSection(people, habits, undoPerson) {
-  const today = startOfDay();
-  const days = [...Array(14)].map((_, i) => addDays(today, -14 + i));
-  const undoable = h => days.filter(d => canUndo(h, d, today));
-  const withTicks = people.filter(p => habits.some(h => h.personId === p.id && undoable(h).length));
-  if (!withTicks.length) return '';
-  const who = withTicks.find(p => p.id === undoPerson) || withTicks[0];
-  const pickers = withTicks.map(p => {
+// The same habit squares the kids use, for the picked person. A parent can
+// tap any day from last Monday through today to check or uncheck it.
+function habitSection(people, habits, habitPerson, habitWeek) {
+  const withHabits = people.filter(p => habits.some(h => h.personId === p.id));
+  if (!withHabits.length) return '';
+  const who = withHabits.find(p => p.id === habitPerson) || withHabits[0];
+  const pickers = withHabits.map(p => {
     const on = p.id === who.id;
     return `
-      <button type="button" class="picker" data-action="undo-person" data-id="${esc(p.id)}" aria-pressed="${on}"
+      <button type="button" class="picker" data-action="habit-person" data-id="${esc(p.id)}" aria-pressed="${on}"
         style="${on ? `background:${p.soft};border-color:${p.color}` : ''}">
         ${avatar(p, 40)}
         <span class="picker-text"><b>${esc(p.name)}</b></span>
       </button>`;
   }).join('');
-  const rows = habits.filter(h => h.personId === who.id).map(h => {
-    const list = undoable(h);
-    if (!list.length) return '';
-    return `
-      <div class="undo-row">
-        <div class="claim-body"><b>${esc(h.name)}</b><span>+${habitPoints(h)} each</span></div>
-        <div class="undo-days">
-          ${list.slice().reverse().map(d => `<button type="button" class="undo-day" data-action="undo-habit-day" data-id="${esc(h.id)}" data-day="${dayKey(d)}"
-            aria-label="Uncheck ${esc(h.name)} on ${esc(fmt.dayDate(d))}" style="border-color:${who.color};color:${who.color}">${fmt.weekday(d)} ${d.getDate()}</button>`).join('')}
-        </div>
-      </div>`;
-  }).join('');
+  const weeks = ['This week', 'Last week'].map((label, i) => `
+    <button type="button" class="btn-outline small ${habitWeek === i ? 'on' : ''}" data-action="habit-week" data-id="${i}" aria-pressed="${habitWeek === i}">${label}</button>`).join('');
+  const mine = habits.filter(h => h.personId === who.id).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
   return `
     <section class="stack" style="gap:10px">
-      <h3>Uncheck a habit</h3>
-      <p class="note" style="font-size:15px">For a past day that wasn't really done. Tap the day to uncheck it and take back its stars.</p>
+      <h3>Habits</h3>
+      <p class="note" style="font-size:15px">Tap a square to check or uncheck it. Stars are given or taken back.</p>
       <div class="pickers" style="margin-bottom:0">${pickers}</div>
-      ${rows}
+      <div class="week-switch">${weeks}</div>
+      ${habitGrid(mine, who, startOfDay(), { parent: true, weeksBack: habitWeek })}
     </section>`;
 }
 
-function controls({ people, claims, allHabits = [], pendingTasks = [], log, edits = {}, undoPerson }) {
+function controls({ people, claims, allHabits = [], pendingTasks = [], log, edits = {}, habitPerson, habitWeek = 0 }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const pending = claims.filter(c => c.status === 'pending');
   const ticks = pendingHabitTicks(allHabits);
@@ -247,7 +237,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
         ${!pending.length ? '<p class="note" style="font-size:15px">Nothing waiting right now.</p>' : pending.map(c =>
           claimRow(c, byId.get(c.personId) || { name: '?', color: 'var(--muted)', points: 0 }, edits)).join('')}
       </section>
-      ${undoSection(people, allHabits, undoPerson)}
+      ${habitSection(people, allHabits, habitPerson, habitWeek)}
       ${log.length ? `
         <section class="stack" style="gap:6px">
           <h3>Changes this visit</h3>
@@ -256,11 +246,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
     </div>`;
 }
 
+// The inside of the Parent controls dialog (app.js keeps the dialog itself).
 export function renderParents(s) {
-  return `
-    <div class="scrim">
-      <div class="dialog" role="dialog" aria-modal="true" aria-label="Parent controls">
-        ${s.unlocked ? controls(s) : pinPad(s)}
-      </div>
-    </div>`;
+  return s.unlocked ? controls(s) : pinPad(s);
 }

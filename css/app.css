@@ -17,6 +17,9 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+/* Only the inner areas scroll. Without this, scrolling past the end of one on
+   the iPad drags the whole page instead, and the next swipe goes nowhere. */
+html, body { overscroll-behavior: none; }
 body {
   margin: 0;
   background: var(--ground);
@@ -100,6 +103,7 @@ h1, h2, h3 { margin: 0; }
 
 .main {
   flex: 1; min-width: 0; height: 100%; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   padding: 32px 40px 48px; padding-top: max(32px, env(safe-area-inset-top));
 }
 
@@ -274,6 +278,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .cell.pending { background: #FFFFFF; border: 2px dashed; }
 .cell.off::after { content: ''; width: 10px; height: 2px; border-radius: 1px; background: var(--line-2); }
 .cell.today { width: 44px; height: 44px; margin: -2px; background: #FFFFFF; border: 3px dashed; }
+/* A past day a parent can tap to check or uncheck. */
+.cell.editable { background: #FFFFFF; border: 2px solid; }
 
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
@@ -313,8 +319,12 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .claim-body b { font-size: 16px; font-weight: 800; }
 .claim-body span { font-size: 14px; font-weight: 700; color: var(--muted); }
 
-.scrim { position: fixed; inset: 0; background: rgba(20, 26, 36, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
-.dialog { width: 620px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: #FFFFFF; border-radius: 28px; padding: 32px; }
+.scrim { position: fixed; inset: 0; overscroll-behavior: contain; background: rgba(20, 26, 36, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.dialog {
+  width: 620px; max-width: 100%; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  background: #FFFFFF; border-radius: 28px; padding: 32px;
+}
 .dialog h2 { font-family: var(--display); font-weight: 600; font-size: 30px; }
 .dialog h3 { font-size: 18px; font-weight: 800; }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -373,8 +383,6 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
   .dialog { padding: 22px; }
 }
 
-/* Parents: unchecking past habit days */
-.undo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border-radius: 16px; background: var(--soft); }
-.undo-row .claim-body { flex: 1; min-width: 160px; }
-.undo-days { display: flex; flex-wrap: wrap; gap: 8px; }
-.undo-day { height: 44px; padding: 0 14px; border-radius: 12px; border: 2px solid; background: #FFFFFF; font-size: 15px; font-weight: 800; }
+/* Parents: this week or last week of habits */
+.week-switch { display: flex; gap: 8px; }
+.week-switch .on { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
