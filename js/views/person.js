@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canTick, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -127,9 +127,6 @@ export function habitGrid(habits, p, today, { parent = false, weeksBack = 0 } = 
         return `<button type="button" class="cell ${isToday ? 'today' : 'editable'}" data-action="parent-habit-day" data-id="${esc(h.id)}" data-day="${key}"
           aria-label="${label}" style="${look}">${done ? check(20) : pending ? hourglass : ''}</button>`;
       }
-      if (key === todayKey && !canTick(h, d)) {
-        return '<div class="cell off" aria-hidden="true" title="Weekly goal already met"></div>';
-      }
       if (key === todayKey && !parent && pending) {
         return `<button type="button" class="cell today pending" data-action="toggle-habit" data-id="${esc(h.id)}"
           aria-label="${esc(h.name)} today: waiting for a grown-up's OK" style="border-color:${p.color};color:${p.color}">${hourglass}</button>`;
@@ -148,8 +145,6 @@ export function habitGrid(habits, p, today, { parent = false, weeksBack = 0 } = 
           aria-label="Save ${esc(h.name)} on ${fmt.weekday(d)} for ${SAVE_COST} stars">${icons.flame}</button>`;
       }
       const future = d > today;
-      // Once the weekly goal is reached, the rest of the week is closed.
-      if (future && count >= goal) return '<div class="cell off" aria-hidden="true"></div>';
       const style = done ? `background:${p.color};color:#FFFFFF` : '';
       return `<div class="cell ${future ? 'future' : done ? '' : 'missed'}" style="${style}" aria-hidden="true">${done ? check(20) : ''}</div>`;
     }).join('');
@@ -162,7 +157,7 @@ export function habitGrid(habits, p, today, { parent = false, weeksBack = 0 } = 
     // says "Daily"; others show progress toward the weekly goal.
     const goalText = goal === allowed.length && !bonus
       ? (onDays || 'Daily')
-      : `${Math.min(count, goal)} of ${goal}${approved >= goal ? ' ✓' : ''}`;
+      : `${count} of ${goal}${approved >= goal ? ' ✓' : ''}`;
     const label = (onDays ? `on ${onDays}, ` : goal === 7 ? 'every day, ' : '')
       + (goal < allowed.length ? `${goal} times a week, ` : '')
       + `${count} done this week, ${habitPoints(h)} stars` + (bonus ? `, ${bonus} star bonus for the week${doubled ? ' (doubled for the streak)' : ''}` : '')
