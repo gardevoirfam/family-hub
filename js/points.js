@@ -47,7 +47,7 @@ export function weekStart(d = new Date()) {
 
 // Ticks in the Monday-to-Sunday week starting `monday`. A tick on a habit
 // that needs a grown-up's OK is "pending" until approved; it counts toward the
-// goal for display and locking, but only approved ticks earn points. A day
+// goal for display, but only approved ticks earn points. A day
 // saved with points ("saved") counts like an approved tick.
 export function weekCount(habit, monday, { approvedOnly = false } = {}) {
   let n = 0;
@@ -59,13 +59,12 @@ export function weekCount(habit, monday, { approvedOnly = false } = {}) {
   return n;
 }
 
-// Whether a habit can be ticked on day d: it must be one of its days, and once
-// the weekly goal is met the rest of the week is closed (so "once between Friday
-// and Sunday" can't be ticked again on Saturday). A ticked day can always be
-// unticked.
+// Whether a habit can be ticked on day d: it must be one of its days. The
+// weekly goal is not a limit: ticks past it still earn their stars. A ticked
+// day can always be unticked.
 export function canTick(habit, d) {
   if (habit.days[dayKey(d)]) return true;
-  return habitOnDay(habit, d) && weekCount(habit, weekStart(d)) < habitGoal(habit);
+  return habitOnDay(habit, d);
 }
 
 function goalMet(habit, monday) {
@@ -315,13 +314,11 @@ export function approveHabitChange(habit, person, day, approve, today = new Date
 
 // Whether a parent can check or uncheck day d of a habit: any day it's for
 // from last Monday through today, except a save. A day still waiting for OK
-// counts as unchecked, so checking it approves it. Checking stops at the
-// weekly goal, like a kid's tick.
+// counts as unchecked, so checking it approves it.
 export function canParentSet(habit, d, today = new Date()) {
   const v = habit.days[dayKey(d)];
   if (v === 'saved' || !habitOnDay(habit, d)) return false;
-  if (startOfDay(d) > startOfDay(today) || startOfDay(d) < addDays(weekStart(today), -7)) return false;
-  return v === true || weekCount(habit, weekStart(d), { approvedOnly: true }) < habitGoal(habit);
+  return startOfDay(d) <= startOfDay(today) && startOfDay(d) >= addDays(weekStart(today), -7);
 }
 
 // A parent checking or unchecking a day (a YYYY-MM-DD key): gives or takes
