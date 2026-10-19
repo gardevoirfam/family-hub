@@ -5,7 +5,7 @@ import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, mergeChanges, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 import { loadWeather } from './weather.js';
 
@@ -297,6 +297,21 @@ async function handleAction(el) {
     render();
     return;
   }
+  if (action === 'decide-task' && state.parents.unlocked && el.dataset.ids) {
+    // A stack of late copies of one task: the stars picked are given once,
+    // on the newest copy; the older copies are closed with none.
+    const tasks = el.dataset.ids.split(',').map(i => state.pendingTasks.find(t => t.id === i)).filter(t => t && t.pendingAt);
+    if (!tasks.length) return;
+    const people = tasks[0].personIds.map(personById).filter(Boolean);
+    if (!people.length) return;
+    const approve = el.dataset.status === 'approved';
+    const newest = tasks[tasks.length - 1];
+    const change = mergeChanges(tasks.map(t =>
+      approveTaskChange(t, people, approve, new Date(), t === newest ? lateTaskDraft(newest, state.parents.edits) : 0)));
+    const names = people.map(p => p.name).join(' and ');
+    state.parents.log = [`${names}: ${newest.title} ×${tasks.length} ${approve ? `approved, +${change.delta} ${change.delta === 1 ? 'star' : 'stars'}${people.length > 1 ? ' each' : ''}` : 'not approved'}`, ...state.parents.log].slice(0, 4);
+    return save(change);
+  }
   if (action === 'decide-task' && state.parents.unlocked) {
     const task = state.pendingTasks.find(t => t.id === id);
     if (!task || !task.pendingAt) return;
@@ -357,6 +372,17 @@ async function handleAction(el) {
 
   const person = personById(state.focus.id);
   if (!person) return;
+  if (action === 'toggle-task' && el.dataset.ids) {
+    // A stack of late copies of one task: tick (or untick) them all at once.
+    // Late ticks only wait for a grown-up's OK, so no stars change here.
+    const tasks = el.dataset.ids.split(',').map(i => state.focus.tasks.find(t => t.id === i)).filter(Boolean);
+    if (!tasks.length) return;
+    const people = tasks[0].personIds.map(personById).filter(Boolean);
+    if (!people.length) people.push(person);
+    const change = mergeChanges(tasks.map(t => taskChange(t, people, taskState(t) === 'open')));
+    if (change.pending) showToast(`${tasks[0].title}: waiting for a grown-up to OK it`);
+    return save(change);
+  }
   if (action === 'toggle-task') {
     const task = state.focus.tasks.find(t => t.id === id);
     if (!task) return;

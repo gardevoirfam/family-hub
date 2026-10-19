@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, stackLate, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -8,7 +8,8 @@ const hourglass = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
 const clock = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
 function dueLabel(task, dayStart, dayEnd) {
-  if (task.pending) return "Waiting for a grown-up's OK";
+  if (task.pending) return task.stack ? `${task.stack.length} missed, waiting for a grown-up's OK` : "Waiting for a grown-up's OK";
+  if (task.stack) return `Missed ${task.stack.length} times since ${fmt.weekday(task.firstDue)}, ${fmt.shortDate(task.firstDue)}`;
   if (task.stale) {
     const ago = daysBetween(task.doneAt, dayStart);
     return `Last done ${fmt.weekday(task.doneAt)}, ${fmt.shortDate(task.doneAt)} · ${ago} days ago`;
@@ -32,7 +33,8 @@ function dueLabel(task, dayStart, dayEnd) {
 // finished today. Stale: a repeating task ready again for a while. Today: due
 // today, a task whose window covers today, or an any-time task that can be
 // done now. Coming up: due later and not done yet. Resting: a repeating task
-// in its cooldown. Expects tasks from taskView.
+// in its cooldown. Late copies of the same task are stacked into one (see
+// stackLate). Expects tasks from taskView.
 export function sortTasks(tasks, dayStart, dayEnd) {
   const sections = { late: [], stale: [], today: [], later: [], resting: [] };
   for (const t of tasks) {
@@ -64,6 +66,7 @@ export function sortTasks(tasks, dayStart, dayEnd) {
   const order = t => (t.due ? t.due.getTime() : t.againAt ? t.againAt.getTime() : t.stale ? t.doneAt.getTime() : Infinity);
   Object.values(sections).forEach(list => list.sort((a, b) => order(a) - order(b) || a.title.localeCompare(b.title)));
   sections.later = sections.later.slice(0, MAX_COMING_UP);
+  sections.late = stackLate(sections.late);
   return sections;
 }
 
@@ -85,12 +88,12 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
     : t.later ? `Not yet: ${t.title}` : `${t.done ? 'Mark not done' : 'Mark done'}: ${t.title}`;
   return `
     <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${t.later ? 'later' : ''} ${late ? 'overdue' : ''}">
-      <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}"
+      <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}" ${t.stack ? `data-ids="${esc(t.stack.join(','))}"` : ''}
         aria-label="${esc(label)}" ${t.later ? 'aria-disabled="true"' : ''} style="${style}">
         ${t.done ? check(26) : t.pending ? hourglass : ''}
       </button>
       <div class="task-body">
-        <div class="task-title">${esc(t.title)}</div>
+        <div class="task-title">${esc(t.title)}${t.stack ? ` <span class="stack-count">×${t.stack.length}</span>` : ''}</div>
         <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>
       </div>
       <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">${icons.star}+${value}</div>
