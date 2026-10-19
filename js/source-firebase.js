@@ -286,7 +286,7 @@ export const source = {
   // Applies one check-off as a single batch: the task or habit, the person's
   // points and streak, and the matching pointsLog entries. A batch (rather than
   // a transaction) still works offline and syncs when Wi-Fi returns.
-  async commit({ task, habit, person, people, logs, claimCreate, claimUpdate }) {
+  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate }) {
     const batch = fs.writeBatch(db);
     if (claimCreate) {
       const fields = {
@@ -307,16 +307,16 @@ export const source = {
       for (const k of ['cost', 'quantity', 'each']) if (k in claimUpdate) fields[k] = claimUpdate[k];
       batch.update(fs.doc(db, 'claims', claimUpdate.id), fields);
     }
-    if (task) {
+    for (const change of [task, ...(tasks || [])].filter(Boolean)) {
       const fields = {};
-      if ('done' in task) {
-        fields.done = task.done;
-        fields.doneAt = !task.done ? null : task.doneAt ? fs.Timestamp.fromDate(task.doneAt) : fs.serverTimestamp();
+      if ('done' in change) {
+        fields.done = change.done;
+        fields.doneAt = !change.done ? null : change.doneAt ? fs.Timestamp.fromDate(change.doneAt) : fs.serverTimestamp();
       }
       // Only tasks that need approval, or were ticked late, ever have pendingAt set.
-      if (task.pending) fields.pendingAt = fs.serverTimestamp();
-      else if (task.clearPending) fields.pendingAt = null;
-      batch.update(fs.doc(db, 'tasks', task.id), fields);
+      if (change.pending) fields.pendingAt = fs.serverTimestamp();
+      else if (change.clearPending) fields.pendingAt = null;
+      batch.update(fs.doc(db, 'tasks', change.id), fields);
     }
     if (habit) {
       batch.update(fs.doc(db, 'habits', habit.id),

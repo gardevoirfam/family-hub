@@ -228,6 +228,53 @@ export function tickedLate(task) {
   return !!task.pendingAt && isLate(task, task.pendingAt);
 }
 
+// Copies of the same repeating thing for the same people: one chore from the
+// schedule, or tasks with the same title (e.g. "Be ready for soccer").
+function stackKey(task) {
+  return `${task.choreId || task.title}|${[...(task.personIds || [])].sort().join(',')}`;
+}
+
+// Late copies of the same task shown as one: open ones past due together,
+// and ones ticked late and waiting for OK together. The newest copy stands for
+// the stack, at the place of the first copy, with `stack` listing every copy's
+// id (oldest due first). Other tasks pass through unchanged.
+export function stackLate(tasks) {
+  const late = t => t.due && !t.done && (t.overdue || tickedLate(t));
+  const groups = new Map();
+  for (const t of tasks.filter(late)) {
+    const key = `${stackKey(t)}|${t.pendingAt ? 'pending' : 'open'}`;
+    groups.set(key, [...(groups.get(key) || []), t]);
+  }
+  const out = [];
+  const placed = new Set();
+  for (const t of tasks) {
+    if (!late(t)) {
+      out.push(t);
+      continue;
+    }
+    const key = `${stackKey(t)}|${t.pendingAt ? 'pending' : 'open'}`;
+    if (placed.has(key)) continue;
+    placed.add(key);
+    const copies = [...groups.get(key)].sort((a, b) => a.due - b.due);
+    const newest = copies[copies.length - 1];
+    out.push(copies.length > 1 ? { ...newest, stack: copies.map(c => c.id), firstDue: copies[0].due } : t);
+  }
+  return out;
+}
+
+// One change from several, e.g. ticking every copy in a late stack. Only one
+// of them may change anyone's stars (the others' `people` are stale copies).
+export function mergeChanges(changes) {
+  const paying = changes.find(c => c.people && c.delta) || {};
+  return {
+    tasks: changes.map(c => c.task),
+    people: paying.people || [],
+    logs: changes.flatMap(c => c.logs || []),
+    delta: changes.reduce((sum, c) => sum + (c.delta || 0), 0),
+    pending: changes.some(c => c.pending)
+  };
+}
+
 // The points (and bonus, if this tick meets the weekly goal) for setting or
 // clearing an approved tick on `day`. A save (`saved`) costs SAVE_COST instead
 // of paying the tick's points. A parent's change (`byParent`) to an earlier week

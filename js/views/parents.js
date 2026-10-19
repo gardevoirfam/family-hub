@@ -1,5 +1,5 @@
 import { esc, avatar, icons } from '../ui.js';
-import { unitAmount, claimLabel, tickedLate } from '../points.js';
+import { unitAmount, claimLabel, tickedLate, stackLate } from '../points.js';
 import { startOfDay } from '../dates.js';
 import { habitGrid } from './person.js';
 
@@ -128,14 +128,17 @@ function pendingTaskRow(t, who, edits) {
   const first = who[0] || { name: '?', color: 'var(--muted)' };
   const names = esc(who.map(p => p.name).join(' and ') || '?');
   const each = who.length > 1 ? ' each' : '';
+  // A stack of late copies is decided all at once (see stackLate).
+  const ids = t.stack ? ` data-ids="${esc(t.stack.join(','))}"` : '';
+  const title = `${esc(t.title)}${t.stack ? ` <span class="stack-count">×${t.stack.length}</span>` : ''}`;
   const buttons = `
-        <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}" data-status="denied">Not done</button>
-        <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}" data-status="approved">Approve</button>`;
+        <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}"${ids} data-status="denied">Not done</button>
+        <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}"${ids} data-status="approved">Approve</button>`;
   if (!tickedLate(t)) {
     return `
       <div class="adjust">
         ${avatar(first, 40)}
-        <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${names} · +${t.points}${each}</span></div>
+        <div class="claim-body" style="flex:1"><b>${title}</b><span>${names} · +${t.points}${each}</span></div>
         ${buttons}
       </div>`;
   }
@@ -145,7 +148,7 @@ function pendingTaskRow(t, who, edits) {
     <div class="adjust claim-flex">
       <div class="claim-flex-top">
         ${avatar(first, 40)}
-        <div class="claim-body" style="flex:1"><b>${esc(t.title)}</b><span>${names} · done late, worth +${t.points}${each} on time</span></div>
+        <div class="claim-body" style="flex:1"><b>${title}</b><span>${names} · ${t.stack ? `${t.stack.length} missed copies, ticked late; stars are given once` : `done late, worth +${t.points}${each} on time`}</span></div>
       </div>
       <div class="claim-edit">
         <span class="claim-edit-label">Stars</span>
@@ -214,7 +217,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
       ${pendingTasks.length ? `
         <section class="stack" style="gap:10px">
           <h3>Tasks waiting for OK</h3>
-          ${[...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt).map(t =>
+          ${stackLate([...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt)).map(t =>
             pendingTaskRow(t, t.personIds.map(id => byId.get(id)).filter(Boolean), edits)).join('')}
         </section>` : ''}
       ${ticks.length ? `
