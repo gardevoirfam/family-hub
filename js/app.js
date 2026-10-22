@@ -196,8 +196,18 @@ async function pressPinKey(key) {
     const entered = p.pin;
     const hash = await hashPin(entered, state.parentPin.pinSalt);
     if (state.parents.pin !== entered) return;
-    if (hash === state.parentPin.pinHash) state.parents = { ...state.parents, unlocked: true, pin: '' };
-    else state.parents = { ...state.parents, pin: '', pinError: true };
+    if (hash !== state.parentPin.pinHash) {
+      state.parents = { ...state.parents, pin: '', pinError: true };
+      render();
+      return;
+    }
+    // The PIN was asked for to delete a swiped task: delete it and close.
+    const removal = state.parents.removal;
+    if (removal) {
+      closeParents();
+      return save({ tasks: removal.ids.map(tid => ({ id: tid, remove: true })) }, `Deleted “${removal.title}”.`);
+    }
+    state.parents = { ...state.parents, unlocked: true, pin: '' };
     render();
   }
 }
@@ -216,6 +226,15 @@ async function handleAction(el) {
     return;
   }
   if (action === 'close-parents') return closeParents();
+  // Deleting a task a row was swiped open for takes the parent PIN.
+  if (action === 'delete-task') {
+    closeSwipe();
+    const ids = el.dataset.ids ? el.dataset.ids.split(',') : [id];
+    state.parents = { open: true, unlocked: false, pin: '', pinError: false, log: [], edits: {}, habitPerson: null, habitWeek: 0,
+      removal: { ids, title: el.dataset.title || 'this task' } };
+    render();
+    return;
+  }
   if (action === 'toggle-event') {
     state.openEvent = state.openEvent === id ? null : id;
     render();
@@ -580,9 +599,79 @@ async function boot() {
 
 // One click handler for every [data-action] button in the signed-in app.
 root.addEventListener('click', e => {
+  // The click that ends a swipe does nothing, and a tap on a row that is
+  // swiped open just closes it again.
+  if (swipe.moved) { swipe.moved = false; return; }
+  if (swipe.open && !e.target.closest('.task-delete')) {
+    const inOpenRow = swipe.open.contains(e.target);
+    closeSwipe();
+    if (inOpenRow) return;
+  }
   const btn = e.target.closest('[data-action]');
   if (btn && shell) handleAction(btn);
 });
+
+// Swipe a task row left to uncover its Delete button. Vertical drags still
+// scroll the page (the rows allow pan-y only), and a short drag snaps back.
+const SWIPE_OPEN = 104;
+const swipe = { row: null, x: 0, y: 0, dx: 0, dragging: false, moved: false, open: null };
+
+function setOffset(row, dx, animate) {
+  const card = row.querySelector('.task');
+  card.style.transition = animate ? 'transform 0.18s ease' : 'none';
+  card.style.transform = dx ? `translateX(${dx}px)` : '';
+  row.classList.toggle('swiping', dx !== 0);
+}
+
+function closeSwipe() {
+  if (swipe.open && swipe.open.isConnected) setOffset(swipe.open, 0, true);
+  swipe.open = null;
+}
+
+root.addEventListener('pointerdown', e => {
+  const row = e.target.closest('.task-swipe');
+  if (!row || e.target.closest('.task-delete') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  swipe.row = row;
+  swipe.x = e.clientX;
+  swipe.y = e.clientY;
+  swipe.dx = 0;
+  swipe.dragging = false;
+  swipe.moved = false;
+});
+
+root.addEventListener('pointermove', e => {
+  const row = swipe.row;
+  if (!row) return;
+  const start = row === swipe.open ? -SWIPE_OPEN : 0;
+  const dx = e.clientX - swipe.x;
+  const dy = e.clientY - swipe.y;
+  if (!swipe.dragging) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe.row = null; return; }
+    if (Math.abs(dx) < 10) return;
+    swipe.dragging = true;
+    if (swipe.open && swipe.open !== row) closeSwipe();
+  }
+  swipe.dx = Math.max(-SWIPE_OPEN * 1.4, Math.min(0, start + dx));
+  setOffset(row, swipe.dx, false);
+});
+
+function endSwipe() {
+  const row = swipe.row;
+  swipe.row = null;
+  if (!row || !swipe.dragging) return;
+  swipe.moved = true;
+  // Forget the drag if no click follows it (for example a cancelled touch).
+  setTimeout(() => { swipe.moved = false; }, 400);
+  if (swipe.dx < -SWIPE_OPEN / 2) {
+    setOffset(row, -SWIPE_OPEN, true);
+    swipe.open = row;
+  } else {
+    setOffset(row, 0, true);
+    if (swipe.open === row) swipe.open = null;
+  }
+}
+root.addEventListener('pointerup', endSwipe);
+root.addEventListener('pointercancel', endSwipe);
 
 window.addEventListener('hashchange', () => {
   state.toast = '';

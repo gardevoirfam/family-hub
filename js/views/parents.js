@@ -5,7 +5,7 @@ import { habitGrid } from './person.js';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', 'Delete'];
 
-function pinPad({ pin, pinError, hasPin }) {
+function pinPad({ pin, pinError, hasPin, removal }) {
   if (!hasPin) {
     return `
       <div class="pin">
@@ -19,7 +19,9 @@ function pinPad({ pin, pinError, hasPin }) {
     <div class="pin">
       <div class="pin-icon">${icons.lock}</div>
       <h2>Parents only</h2>
-      <p class="note" style="max-width:380px;font-size:16px">Enter the PIN to change stars or approve rewards.</p>
+      <p class="note" style="max-width:380px;font-size:16px">${removal
+        ? `Enter the PIN to delete “${esc(removal.title)}”${removal.ids.length > 1 ? ` (all ${removal.ids.length})` : ''}.`
+        : 'Enter the PIN to change stars or approve rewards.'}</p>
       <div class="pin-dots" aria-label="${pin.length} of 4 digits entered">
         ${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? 'on' : ''}"></span>`).join('')}
       </div>

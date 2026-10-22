@@ -86,7 +86,11 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
   // A task before its day can't be ticked yet; tapping it just says when.
   const label = t.pending ? `Cancel, waiting for OK: ${t.title}`
     : t.later ? `Not yet: ${t.title}` : `${t.done ? 'Mark not done' : 'Mark done'}: ${t.title}`;
+  // Swiping the row left uncovers a Delete button (see the swipe handler in app.js).
   return `
+    <div class="task-swipe">
+    <button type="button" class="task-delete" data-action="delete-task" data-id="${esc(t.id)}" ${t.stack ? `data-ids="${esc(t.stack.join(','))}"` : ''}
+      data-title="${esc(t.title)}" aria-label="${esc(`Delete: ${t.title}`)}" tabindex="-1">${icons.trash}Delete</button>
     <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${t.later ? 'later' : ''} ${late ? 'overdue' : ''}">
       <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}" ${t.stack ? `data-ids="${esc(t.stack.join(','))}"` : ''}
         aria-label="${esc(label)}" ${t.later ? 'aria-disabled="true"' : ''} style="${style}">
@@ -97,6 +101,7 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
         <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>
       </div>
       <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">${icons.star}+${value}</div>
+    </div>
     </div>`;
 }
 
