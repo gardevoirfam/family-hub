@@ -154,10 +154,10 @@ export const source = {
   },
   watchPeople(cb) { return watch(() => cb(copy(people))); },
   watchEvents(from, cb) { cb(events.filter(e => e.start >= from)); return () => {}; },
-  watchTasks(dayStart, dayEnd, cb) { return watch(() => cb(copy(tasks))); },
-  watchPersonTasks(personId, cb) { return watch(() => cb(copy(tasks.filter(t => t.personIds.includes(personId))))); },
+  watchTasks(dayStart, dayEnd, cb) { return watch(() => cb(copy(tasks.filter(t => !t.removedAt)))); },
+  watchPersonTasks(personId, cb) { return watch(() => cb(copy(tasks.filter(t => !t.removedAt && t.personIds.includes(personId))))); },
   watchHabits(personId, cb) { return watch(() => cb(copy(habits.filter(h => h.personId === personId)))); },
-  watchPendingTasks(cb) { return watch(() => cb(copy(tasks.filter(t => t.pendingAt)))); },
+  watchPendingTasks(cb) { return watch(() => cb(copy(tasks.filter(t => !t.removedAt && t.pendingAt)))); },
   watchAllHabits(cb) { return watch(() => cb(copy(habits))); },
   watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, ...r })))); },
   watchClaims(cb) { return watch(() => cb(claims.map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
@@ -180,6 +180,7 @@ export const source = {
       if ('done' in change) Object.assign(t, { done: change.done, doneAt: change.done ? (change.doneAt || new Date()) : null });
       if (change.pending) t.pendingAt = new Date();
       else if (change.clearPending) t.pendingAt = null;
+      if (change.remove) t.removedAt = new Date();
     }
     if (habit) {
       const h = habits.find(x => x.id === habit.id);

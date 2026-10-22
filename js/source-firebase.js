@@ -35,9 +35,14 @@ const toTask = d => {
     // Repeating tasks come back cooldownDays after they're done.
     cooldownDays: Number(x.cooldownDays) > 0 ? Number(x.cooldownDays) : 0,
     needsApproval: x.needsApproval === true,
-    pendingAt: toDate(x.pendingAt)
+    pendingAt: toDate(x.pendingAt),
+    removedAt: toDate(x.removedAt)
   };
 };
+
+// Tasks a parent swiped away keep their document (so the Claude task doesn't
+// make them again) but are hidden everywhere in the app.
+const liveTasks = snap => snap.docs.map(toTask).filter(t => !t.removedAt);
 
 const toDate = v => (v && typeof v.toDate === 'function') ? v.toDate() : (v ? new Date(v) : null);
 
@@ -149,7 +154,7 @@ export const source = {
       cb([...byId.values()]);
     };
     const unsubs = Object.entries(queries).map(([key, q]) => fs.onSnapshot(q, snap => {
-      parts[key] = snap.docs.map(toTask);
+      parts[key] = liveTasks(snap);
       emit();
     }, onError));
     return () => unsubs.forEach(u => u());
@@ -165,7 +170,7 @@ export const source = {
     };
     const parts = {};
     const unsubs = Object.entries(queries).map(([key, q]) => fs.onSnapshot(q, snap => {
-      parts[key] = snap.docs.map(toTask);
+      parts[key] = liveTasks(snap);
       if (Object.keys(parts).length < 2) return;
       const byId = new Map();
       [...parts.own, ...parts.shared].forEach(t => byId.set(t.id, t));
@@ -182,7 +187,7 @@ export const source = {
   // Tasks ticked and waiting for a grown-up's OK, for the Parents panel.
   watchPendingTasks(cb, onError) {
     const q = fs.query(fs.collection(db, 'tasks'), fs.where('pendingAt', '>', fs.Timestamp.fromMillis(0)));
-    return fs.onSnapshot(q, snap => cb(snap.docs.map(toTask)), onError);
+    return fs.onSnapshot(q, snap => cb(liveTasks(snap)), onError);
   },
 
   // Everyone's habits, for the Parents panel (ticks waiting for OK, and
@@ -316,6 +321,7 @@ export const source = {
       // Only tasks that need approval, or were ticked late, ever have pendingAt set.
       if (change.pending) fields.pendingAt = fs.serverTimestamp();
       else if (change.clearPending) fields.pendingAt = null;
+      if (change.remove) fields.removedAt = fs.serverTimestamp();
       batch.update(fs.doc(db, 'tasks', change.id), fields);
     }
     if (habit) {

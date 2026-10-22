@@ -436,7 +436,8 @@ def sync_ready(hub, schedule, events, tz, now, dry_run):
     for doc_id, task in wanted.items():
         old = existing.get(doc_id)
         when = task['due'].astimezone(tz).strftime('%a %b %d %H:%M')
-        if old and (old.get('done') or old.get('pendingAt')):
+        # Leave ticked tasks alone, and ones a parent deleted in the app.
+        if old and (old.get('done') or old.get('pendingAt') or old.get('removedAt')):
             continue
         if old and (old.get('title'), old.get('points'), parse_when(old['due'], tz)[0],
                     old.get('start') and parse_when(old['start'], tz)[0]) == \
