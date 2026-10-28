@@ -82,7 +82,7 @@ const rewards = [
   { id: 'r5', title: '$5 allowance bonus', detail: 'Added to your next allowance.', cost: 150, active: true },
   { id: 'r6', title: 'Ice cream trip', detail: 'A weekend trip for the whole family.', cost: 200, active: true },
   { id: 'w1', title: 'Pancake breakfast', detail: 'You pick the toppings on Saturday.', cost: 30, weekly: true, active: true },
-  { id: 'w2', title: 'Board game night', detail: 'You choose the game, everyone plays.', cost: 25, weekly: true, active: true },
+  { id: 'w2', title: 'Board game night', detail: 'You choose the game, everyone plays.', cost: 25, weekly: true, active: true, keptBy: ['leo'] },
   { id: 'w3', title: 'Build a blanket fort', detail: 'In the living room, up for one night.', cost: 35, weekly: true, active: true },
   { id: 'w4', title: 'Bake cookies with a parent', detail: 'You pick the kind.', cost: 40, weekly: true, active: true }
 ];
@@ -159,7 +159,7 @@ export const source = {
   watchHabits(personId, cb) { return watch(() => cb(copy(habits.filter(h => h.personId === personId)))); },
   watchPendingTasks(cb) { return watch(() => cb(copy(tasks.filter(t => !t.removedAt && t.pendingAt)))); },
   watchAllHabits(cb) { return watch(() => cb(copy(habits))); },
-  watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, ...r })))); },
+  watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, keptBy: [], ...r })))); },
   watchClaims(cb) { return watch(() => cb(claims.map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
   watchParentSettings(cb) {
     hashPin(DEMO_PIN, parentSettings.pinSalt).then(pinHash => cb({ ...parentSettings, pinHash }));
@@ -169,7 +169,8 @@ export const source = {
   watchPointsLog(from, cb) {
     return watch(() => cb({ first: pointsLog[0].at, entries: pointsLog.filter(e => e.at >= from).map(e => ({ ...e })) }));
   },
-  async commit({ task, tasks: changedTasks, habit, person, people: changedPeople, logs, claimCreate, claimUpdate }) {
+  async commit({ task, tasks: changedTasks, habit, person, people: changedPeople, logs, claimCreate, claimUpdate, rewardKeep }) {
+    if (rewardKeep) rewards.find(r => r.id === rewardKeep.id).keptBy = rewardKeep.keptBy.slice();
     if (claimCreate) claims.unshift({ id: 'c' + Date.now(), ...claimCreate, status: 'pending', createdAt: new Date() });
     if (claimUpdate) {
       const { id, ...fields } = claimUpdate;

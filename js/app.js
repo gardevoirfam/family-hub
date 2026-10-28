@@ -255,6 +255,14 @@ async function handleAction(el) {
     render();
     return;
   }
+  if (action === 'keep') {
+    const reward = state.rewards.find(r => r.id === id);
+    const person = personById(state.claimer) || state.people[0];
+    if (!reward || !reward.weekly || !person) return;
+    const kept = reward.keptBy.includes(person.id);
+    const keptBy = kept ? reward.keptBy.filter(p => p !== person.id) : [...reward.keptBy, person.id];
+    return save({ rewardKeep: { id, keptBy } }, kept ? 'Okay, it will go after this week.' : 'Kept! It stays after this week.');
+  }
   if (action === 'claim') {
     const reward = state.rewards.find(r => r.id === id);
     const person = personById(state.claimer) || state.people[0];

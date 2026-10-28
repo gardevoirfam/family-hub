@@ -8,7 +8,19 @@ function claimStatus(c) {
   return [c.type === 'flexible' ? 'Waiting for a parent to set the stars' : 'Waiting for a parent', '#8A4B00'];
 }
 
-function card(r, who, qty) {
+// Kids tap Keep on a weekly reward so it stays after this week.
+function keepRow(r, who, names) {
+  const kept = who && r.keptBy.includes(who.id);
+  const by = r.keptBy.map(id => names.get(id)).filter(Boolean);
+  return `
+      <div class="keep-row">
+        <button type="button" class="keep-btn" data-action="keep" data-id="${esc(r.id)}" aria-pressed="${!!kept}" ${who ? '' : 'disabled'}
+          style="${kept ? `background:${who.soft};border-color:${who.color};color:${who.color}` : ''}">${kept ? '♥ Kept' : '♡ Keep it'}</button>
+        <span>${by.length ? `${esc(by.join(', '))} ${by.length === 1 ? 'wants' : 'want'} to keep it` : ''}</span>
+      </div>`;
+}
+
+function card(r, who, qty, names) {
   const type = rewardType(r);
   const btn = (ok, label) => `
     <button type="button" class="reward-btn" data-action="claim" data-id="${esc(r.id)}" ${ok ? '' : 'disabled'}
@@ -45,6 +57,7 @@ function card(r, who, qty) {
       <div class="reward-detail">${esc(r.detail)}</div>
       ${extra}
       ${button}
+      ${r.weekly ? keepRow(r, who, names) : ''}
     </div>`;
 }
 
@@ -66,12 +79,13 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
 
   const weekly = sorted.filter(r => r.weekly);
   const always = sorted.filter(r => !r.weekly);
-  const cardsOf = list => list.map(r => card(r, who, claimQty[r.id])).join('');
+  const names = new Map(people.map(p => [p.id, p.name]));
+  const cardsOf = list => list.map(r => card(r, who, claimQty[r.id], names)).join('');
   const heading = (text, note) => `<h2 class="reward-group">${text}${note ? `<span>${note}</span>` : ''}</h2>`;
   const cards = !sorted.length
     ? '<div class="empty" style="grid-column:1/-1">No rewards yet.</div>'
     : (weekly.length
-      ? heading("This week's rewards", 'New ones every Monday') + cardsOf(weekly) + (always.length ? heading('Every week') + cardsOf(always) : '')
+      ? heading("This week's rewards", 'New ones every Monday. Tap Keep to keep one for good.') + cardsOf(weekly) + (always.length ? heading('Every week') + cardsOf(always) : '')
       : cardsOf(always));
 
   const recentHtml = !recent.length ? '<p class="note">No claims yet.</p>' : recent.map(c => {

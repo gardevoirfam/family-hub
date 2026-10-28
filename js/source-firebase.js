@@ -211,6 +211,7 @@ export const source = {
           maxQty: Number(x.maxQty) || 0,
           order: Number.isFinite(x.order) ? x.order : 999,
           weekly: x.weekly === true,
+          keptBy: Array.isArray(x.keptBy) ? x.keptBy : [],
           active: x.active !== false
         };
       }));
@@ -291,8 +292,10 @@ export const source = {
   // Applies one check-off as a single batch: the task or habit, the person's
   // points and streak, and the matching pointsLog entries. A batch (rather than
   // a transaction) still works offline and syncs when Wi-Fi returns.
-  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate }) {
+  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate, rewardKeep }) {
     const batch = fs.writeBatch(db);
+    // Who wants to keep a weekly reward; the Monday rotation makes it permanent.
+    if (rewardKeep) batch.update(fs.doc(db, 'rewards', rewardKeep.id), { keptBy: rewardKeep.keptBy });
     if (claimCreate) {
       const fields = {
         personId: claimCreate.personId, rewardId: claimCreate.rewardId,

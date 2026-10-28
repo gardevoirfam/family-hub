@@ -314,6 +314,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .reward-detail { font-size: 15px; color: var(--muted); flex: 1; }
 .reward-btn { height: 52px; border-radius: 14px; border: 0; font-size: 16px; font-weight: 800; background: var(--track); color: var(--muted); }
 .reward-btn:disabled { cursor: not-allowed; }
+.keep-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.keep-btn { flex: none; height: 40px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--track); background: #FFFFFF; font-size: 15px; font-weight: 800; color: var(--muted); }
 .reward-group { grid-column: 1 / -1; margin: 6px 0 -4px; font-family: var(--display); font-weight: 600; font-size: 20px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .reward-group:not(:first-child) { margin-top: 14px; }
 .reward-group span { font-family: var(--body); font-size: 14px; font-weight: 700; color: var(--muted); }

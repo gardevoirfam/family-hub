@@ -530,6 +530,8 @@ def check_rewards(rewards):
             problems.append(f'{name}: cost (the suggested points) must be a whole number')
         if 'weekly' in r and not isinstance(r['weekly'], bool):
             problems.append(f'{name}: weekly must be true or false')
+        if 'keptBy' in r and not (isinstance(r['keptBy'], list) and all(isinstance(p, str) for p in r['keptBy'])):
+            problems.append(f'{name}: keptBy must be a list of person ids')
         for k in ('unitMinutes', 'maxQty', 'order'):
             if k in r and not (isinstance(r[k], int) and r[k] >= 0):
                 problems.append(f'{name}: {k} must be a whole number')
@@ -547,7 +549,7 @@ def cmd_rewards(hub, args):
     problems = check_rewards(rewards)
     if problems:
         sys.exit('Not saved. Problems:\n  ' + '\n  '.join(problems))
-    keys = ('title', 'detail', 'type', 'cost', 'unit', 'unitMinutes', 'maxQty', 'order', 'weekly')
+    keys = ('title', 'detail', 'type', 'cost', 'unit', 'unitMinutes', 'maxQty', 'order', 'weekly', 'keptBy')
     wanted = {}
     for r in rewards:
         data = {k: r[k] for k in keys if k in r}

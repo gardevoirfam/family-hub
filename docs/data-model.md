@@ -82,6 +82,7 @@ Written with `tools/hubtask.py rewards set FILE` (a JSON list of these, each wit
 | `maxQty` | int    | Optional, `perUnit` only: most units in one claim (default 20). |
 | `order`  | int    | Optional sort order on the Rewards page (then by cost). |
 | `weekly` | bool   | Optional. `true` for the 4 rotating "This week's rewards" slots, shown in their own group at the top of the Rewards page. The weekly reward routine replaces these every Monday and leaves the others alone. |
+| `keptBy` | array  | Optional. Person ids who tapped Keep on a weekly reward. The iPad may change it. On Monday the weekly reward routine makes a kept reward permanent (drops `weekly` and `keptBy`) instead of rotating it out. |
 | `active` | bool   | Hidden when `false`. |
 
 - **fixed**: claiming spends `cost` right away; declining gives it back.
