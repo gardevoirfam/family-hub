@@ -29,14 +29,15 @@ readable ids (for example `maya`) make the data easier to work with.
 | `title`    | string    | |
 | `start`    | timestamp | Optional. When the job opens, for a job with a window such as Friday to Sunday. It shows under Today for every day of the window. |
 | `due`      | timestamp | When the task is due (the end of the window). On time means done before this. Leave it out for an any-time or repeating task (full points whenever it's done). |
-| `points`   | int       | Full value. A late tick waits for a parent, who picks the points (0 unless they give some). |
+| `points`   | int       | Full value. A late tick waits for a parent; it shows full points, and the parent can lower them down to 0. |
 | `done`     | bool      | **Must be set** (use `false` for new tasks); the home page queries on it. The iPad may change it. |
 | `doneAt`   | timestamp | Set when ticked done, `null` otherwise. The iPad may change it. |
 | `cooldownDays` | number | Optional. Makes a **repeating** task: it has no `due`, can be done any time, and after each completion it rests for this many days (fractions allowed) before it can be done again. One document is reused; every completion is in `pointsLog`. Once it has been ready again for 3 days without being done, the app shows it in red at the top as "Not done in a while" (`STALE_DAYS` in js/points.js). |
 | `needsApproval` | bool | Optional. Ticking sets `pendingAt` instead of `done`; a grown-up approves it in the Parents panel, which pays the points (judged by when it was ticked) and starts any cooldown then. |
-| `pendingAt` | timestamp | Set by the iPad while waiting for approval, `null` otherwise. A task ticked after its `due` also waits here, and the parent picks its points (0 by default, or full points). |
+| `pendingAt` | timestamp | Set by the iPad while waiting for approval, `null` otherwise. A task ticked after its `due` also waits here; it is worth full points unless the parent lowers them (down to 0). |
+| `award`    | int       | Set by the iPad when a parent approves a late task: the stars each person got. `null` otherwise. |
 | `removedAt` | timestamp | Set by the iPad when a parent swipes the task away (with the PIN). The app hides it from then on. The document is kept so the chore schedule and calendar sync don't make it again; to bring it back, clear this field. |
-| `choreId`  | string    | Set on jobs made from the chore schedule (see `settings/schedule`). Their id is `<choreId>-<due date>`. |
+| `choreId`  | string    | Set on jobs made from the chore schedule (see `settings/schedule`). Their id is `<choreId>-<due date>`. Only one copy of a chore is open at a time: while one is late and not ticked, `generate` makes no new copies and hides (sets `removedAt` on) any later open copies, so the late one stays as the single task until it's done. The app also shows only the earliest open copy of a task. |
 | `readyId`  | string    | Set on tasks made from a calendar event (schedule `ready` rules). Their id is `ready-<personId>-<calendar event id>` (before the event) or `packup-<personId>-<calendar event id>` (after it). |
 | `eventId`  | string    | The `events` document a "be ready" task belongs to. |
 

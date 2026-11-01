@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, addDays, dayKey, daysBetween, inWindow } from '../dates.js';
-import { taskValue, taskView, stackLate, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
+import { taskValue, taskView, uniqueTasks, lateLabel, habitStreak, habitPoints, habitGoal, habitBonus, weekBonus, habitDays, habitOnDay, canSave, canParentSet, SAVE_COST, weekCount, weeklyPoints } from '../points.js';
 
 const MAX_COMING_UP = 10;
 const check = size => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
@@ -8,8 +8,7 @@ const hourglass = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
 const clock = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
 function dueLabel(task, dayStart, dayEnd) {
-  if (task.pending) return task.stack ? `${task.stack.length} missed, waiting for a grown-up's OK` : "Waiting for a grown-up's OK";
-  if (task.stack) return `Missed ${task.stack.length} times since ${fmt.weekday(task.firstDue)}, ${fmt.shortDate(task.firstDue)}`;
+  if (task.pending) return "Waiting for a grown-up's OK";
   if (task.stale) {
     const ago = daysBetween(task.doneAt, dayStart);
     return `Last done ${fmt.weekday(task.doneAt)}, ${fmt.shortDate(task.doneAt)} · ${ago} days ago`;
@@ -33,11 +32,11 @@ function dueLabel(task, dayStart, dayEnd) {
 // finished today. Stale: a repeating task ready again for a while. Today: due
 // today, a task whose window covers today, or an any-time task that can be
 // done now. Coming up: due later and not done yet. Resting: a repeating task
-// in its cooldown. Late copies of the same task are stacked into one (see
-// stackLate). Expects tasks from taskView.
+// in its cooldown. Each task shows once (see uniqueTasks), and late ones go
+// most overdue first. Expects tasks from taskView.
 export function sortTasks(tasks, dayStart, dayEnd) {
   const sections = { late: [], stale: [], today: [], later: [], resting: [] };
-  for (const t of tasks) {
+  for (const t of uniqueTasks(tasks)) {
     if (t.overdue) {
       sections.late.push(t);
       continue;
@@ -61,12 +60,11 @@ export function sortTasks(tasks, dayStart, dayEnd) {
       sections.late.push(t);
     }
   }
-  // Dated tasks by due time, then any-time ones; resting ones by when they're back.
-  // Stale ones go oldest first.
+  // Dated tasks by due time (so late ones go most overdue first), then any-time
+  // ones; resting ones by when they're back. Stale ones go oldest first.
   const order = t => (t.due ? t.due.getTime() : t.againAt ? t.againAt.getTime() : t.stale ? t.doneAt.getTime() : Infinity);
   Object.values(sections).forEach(list => list.sort((a, b) => order(a) - order(b) || a.title.localeCompare(b.title)));
   sections.later = sections.later.slice(0, MAX_COMING_UP);
-  sections.late = stackLate(sections.late);
   return sections;
 }
 
@@ -78,7 +76,9 @@ function withLabel(t, p, people) {
 }
 
 function taskRow(t, p, people, now, dayStart, dayEnd) {
-  const value = t.done ? taskValue(t, t.doneAt || now) : taskValue(t, t.pendingAt || now);
+  const value = taskValue(t);
+  // How late it is now, or was when it was ticked (if still waiting for OK).
+  const lateAt = t.overdue ? now : t.pending && t.due && t.pendingAt > t.due ? t.pendingAt : null;
   const late = t.overdue || t.stale;
   const style = t.done ? `background:${p.color};border-color:${p.color};color:#FFFFFF`
     : t.pending ? `border-style:dashed;border-color:${p.color};color:${p.color}`
@@ -89,15 +89,15 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
   // Swiping the row left uncovers a Delete button (see the swipe handler in app.js).
   return `
     <div class="task-swipe">
-    <button type="button" class="task-delete" data-action="delete-task" data-id="${esc(t.id)}" ${t.stack ? `data-ids="${esc(t.stack.join(','))}"` : ''}
+    <button type="button" class="task-delete" data-action="delete-task" data-id="${esc(t.id)}"
       data-title="${esc(t.title)}" aria-label="${esc(`Delete: ${t.title}`)}" tabindex="-1">${icons.trash}Delete</button>
     <div class="task ${t.done ? 'done' : ''} ${t.pending ? 'pending' : ''} ${t.later ? 'later' : ''} ${late ? 'overdue' : ''}">
-      <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}" ${t.stack ? `data-ids="${esc(t.stack.join(','))}"` : ''}
+      <button type="button" class="check" data-action="toggle-task" data-id="${esc(t.id)}"
         aria-label="${esc(label)}" ${t.later ? 'aria-disabled="true"' : ''} style="${style}">
         ${t.done ? check(26) : t.pending ? hourglass : ''}
       </button>
       <div class="task-body">
-        <div class="task-title">${esc(t.title)}${t.stack ? ` <span class="stack-count">×${t.stack.length}</span>` : ''}</div>
+        <div class="task-title">${esc(t.title)}${lateAt ? ` <span class="late-badge">${esc(lateLabel(t, lateAt))}</span>` : ''}</div>
         <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>
       </div>
       <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">${icons.star}+${value}</div>
@@ -189,7 +189,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
     : `${done} of ${due.length} tasks done today`;
   const weekly = log ? weeklyPoints(log.entries, today, log.first) : null;
   const groups = [
-    { label: 'Late', note: 'A grown-up decides the stars, so still worth doing', cls: 'late', list: sections.late },
+    { label: 'Late', note: 'Most overdue first. Still worth full stars; a grown-up checks it', cls: 'late', list: sections.late },
     { label: 'Not done in a while', note: 'Ready again for a few days', cls: 'late', list: sections.stale },
     { label: 'Today', note: '', cls: '', list: sections.today },
     { label: 'Coming up', note: '', cls: '', list: sections.later },

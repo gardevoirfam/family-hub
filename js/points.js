@@ -1,9 +1,10 @@
-// Point rules from the Rewards page: full points on time, no points late,
+// Point rules from the Rewards page: full points on time; a late task shows
+// full points too, but waits for a parent, who can lower them (down to 0);
 // each habit's own points per tick (2 if not set), plus the habit's own bonus
 // (if any) the moment it meets its weekly goal (Monday to Sunday). The bonus is
 // doubled when the habit is on a streak (it also met its goal the week before).
 // Once a week, a person can spend points to save one missed day of one habit.
-import { startOfDay, addDays, dayKey } from './dates.js';
+import { startOfDay, addDays, dayKey, daysBetween } from './dates.js';
 
 export const HABIT_POINTS = 2;
 export const SAVE_COST = 4;
@@ -87,9 +88,23 @@ export function canSave(habit, habits, person, d, today = new Date()) {
     && person.points >= SAVE_COST;
 }
 
-// What a job is worth if finished at `at`.
-export function taskValue(task, at = new Date()) {
-  return isLate(task, at) ? 0 : task.points;
+// What a job is worth: its full points, or for a late one the stars a parent
+// gave (`award`). Late ones finished before parents could set stars paid 0.
+export function taskValue(task) {
+  if (Number.isInteger(task.award)) return task.award;
+  if (task.done && task.doneAt && isLate(task, task.doneAt)) return 0;
+  return task.points;
+}
+
+// Whole days a task is past its due day (0 when it was due earlier today).
+export function daysLate(task, now = new Date()) {
+  return task.due ? Math.max(0, daysBetween(task.due, now)) : 0;
+}
+
+// "3 days late", "1 day late", or "Late" for one due earlier today.
+export function lateLabel(task, now = new Date()) {
+  const n = daysLate(task, now);
+  return n === 0 ? 'Late' : `${n} ${n === 1 ? 'day' : 'days'} late`;
 }
 
 function isLate(task, at) {
@@ -196,16 +211,18 @@ export function taskChange(task, people, done, now = new Date()) {
 // `doneAt` is the completion time to save (null means now, by the server).
 // `award` is the points a grown-up chose for a late task (null: the rules).
 function pointsForTask(task, people, done, at, doneAt, award = null) {
-  // Unticking takes back what ticking gave, judged by when it was ticked.
+  // Unticking takes back what ticking gave.
   const late = isLate(task, at);
-  const value = award ?? taskValue(task, at);
+  const value = award ?? taskValue(task);
   const reason = `${task.title} (${done ? (late ? (value ? 'late, stars given by a parent' : 'late') : 'on time') : 'unticked'})`;
   const changes = people.map(person => {
     const delta = done ? value : -Math.min(value, person.points);
     return { person, delta };
   });
   return {
-    task: { id: task.id, done, doneAt: done ? doneAt : null, clearPending: !!task.pendingAt },
+    // Only late tasks a parent approved carry `award` (cleared when unticked).
+    task: { id: task.id, done, doneAt: done ? doneAt : null, clearPending: !!task.pendingAt,
+      ...(done && award !== null ? { award } : !done && Number.isInteger(task.award) ? { award: null } : {}) },
     people: changes.map(({ person, delta }) => ({ id: person.id, points: person.points + delta, streak: person.streak })),
     logs: changes.filter(c => c.delta).map(({ person, delta }) => ({ personId: person.id, delta, reason })),
     delta: done ? value : -value
@@ -214,13 +231,13 @@ function pointsForTask(task, people, done, at, doneAt, award = null) {
 
 // A grown-up's answer to a pending task. Approving pays everyone on it, as if
 // it was done when it was ticked (so it isn't late if ticked on time, and its
-// cooldown starts then). A late task pays `award` points each (0 if not
-// given). Declining puts it back to open.
+// cooldown starts then). A late task pays `award` points each (full points
+// if the parent didn't change them). Declining puts it back to open.
 export function approveTaskChange(task, people, approve, now = new Date(), award = null) {
   if (!approve) return { task: { id: task.id, clearPending: true }, logs: [], delta: 0 };
   const at = task.pendingAt || now;
   const late = isLate(task, at);
-  return pointsForTask(task, people, true, at, at, late ? Math.max(0, award || 0) : null);
+  return pointsForTask(task, people, true, at, at, late ? Math.max(0, award ?? task.points) : null);
 }
 
 // Whether a pending task was ticked after it was due.
@@ -228,51 +245,29 @@ export function tickedLate(task) {
   return !!task.pendingAt && isLate(task, task.pendingAt);
 }
 
-// Copies of the same repeating thing for the same people: one chore from the
-// schedule, or tasks with the same title (e.g. "Be ready for soccer").
-function stackKey(task) {
-  return `${task.choreId || task.title}|${[...(task.personIds || [])].sort().join(',')}`;
+// Copies of the same task for the same people: one chore from the schedule,
+// one before/after-event rule, or tasks with the same title.
+function taskKey(task) {
+  return `${task.choreId || task.readyId || task.title}|${[...(task.personIds || [])].sort().join(',')}`;
 }
 
-// Late copies of the same task shown as one: open ones past due together,
-// and ones ticked late and waiting for OK together. The newest copy stands for
-// the stack, at the place of the first copy, with `stack` listing every copy's
-// id (oldest due first). Other tasks pass through unchanged.
-export function stackLate(tasks) {
-  const late = t => t.due && !t.done && (t.overdue || tickedLate(t));
-  const groups = new Map();
-  for (const t of tasks.filter(late)) {
-    const key = `${stackKey(t)}|${t.pendingAt ? 'pending' : 'open'}`;
-    groups.set(key, [...(groups.get(key) || []), t]);
+// Each task once. When the same task has several copies not done yet, the
+// one due first shows (a late one stays until it's done), and later copies
+// stay hidden while it's open. Once it's ticked and waiting for OK, the next
+// copy shows, unless that one is late too (a late duplicate). Expects tasks
+// from taskView.
+export function uniqueTasks(tasks) {
+  const unfinished = t => !t.done && t.due;
+  const first = new Map();
+  for (const t of tasks.filter(unfinished)) {
+    const k = taskKey(t);
+    if (!first.has(k) || t.due < first.get(k).due) first.set(k, t);
   }
-  const out = [];
-  const placed = new Set();
-  for (const t of tasks) {
-    if (!late(t)) {
-      out.push(t);
-      continue;
-    }
-    const key = `${stackKey(t)}|${t.pendingAt ? 'pending' : 'open'}`;
-    if (placed.has(key)) continue;
-    placed.add(key);
-    const copies = [...groups.get(key)].sort((a, b) => a.due - b.due);
-    const newest = copies[copies.length - 1];
-    out.push(copies.length > 1 ? { ...newest, stack: copies.map(c => c.id), firstDue: copies[0].due } : t);
-  }
-  return out;
-}
-
-// One change from several, e.g. ticking every copy in a late stack. Only one
-// of them may change anyone's stars (the others' `people` are stale copies).
-export function mergeChanges(changes) {
-  const paying = changes.find(c => c.people && c.delta) || {};
-  return {
-    tasks: changes.map(c => c.task),
-    people: paying.people || [],
-    logs: changes.flatMap(c => c.logs || []),
-    delta: changes.reduce((sum, c) => sum + (c.delta || 0), 0),
-    pending: changes.some(c => c.pending)
-  };
+  return tasks.filter(t => {
+    if (!unfinished(t) || t.pending) return true;
+    const f = first.get(taskKey(t));
+    return f === t || (f.pending && !t.overdue);
+  });
 }
 
 // The points (and bonus, if this tick meets the weekly goal) for setting or

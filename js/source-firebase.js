@@ -36,6 +36,8 @@ const toTask = d => {
     cooldownDays: Number(x.cooldownDays) > 0 ? Number(x.cooldownDays) : 0,
     needsApproval: x.needsApproval === true,
     pendingAt: toDate(x.pendingAt),
+    // Stars a parent gave for a late task (none set: full points).
+    award: Number.isInteger(x.award) ? x.award : null,
     removedAt: toDate(x.removedAt)
   };
 };
@@ -325,6 +327,8 @@ export const source = {
       if (change.pending) fields.pendingAt = fs.serverTimestamp();
       else if (change.clearPending) fields.pendingAt = null;
       if (change.remove) fields.removedAt = fs.serverTimestamp();
+      // Stars a parent gave for a late task; cleared when it's unticked.
+      if ('award' in change) fields.award = change.award;
       batch.update(fs.doc(db, 'tasks', change.id), fields);
     }
     if (habit) {

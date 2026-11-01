@@ -1,5 +1,5 @@
 import { esc, avatar, icons } from '../ui.js';
-import { unitAmount, claimLabel, tickedLate, stackLate } from '../points.js';
+import { unitAmount, claimLabel, tickedLate, lateLabel } from '../points.js';
 import { startOfDay } from '../dates.js';
 import { habitGrid } from './person.js';
 
@@ -116,27 +116,29 @@ function claimRow(c, p, edits) {
 }
 
 // The stars a parent will give each person for a late task: their edits so
-// far, or 0.
+// far, or the task's full stars.
 export function lateTaskDraft(task, edits = {}) {
   const d = edits['task:' + task.id];
-  return d ? d.each : 0;
+  return d ? d.each : task.points;
 }
 
 function lateStepBtn(t, delta, label, disabled) {
   return `<button type="button" class="step" data-action="late-task-edit" data-id="${esc(t.id)}" data-delta="${delta}" ${disabled ? 'disabled' : ''} aria-label="${label}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</button>`;
 }
 
+// Tasks waiting for OK, most overdue (earliest due) first, then by when ticked.
+const byOverdue = (a, b) => ((a.due || a.pendingAt) - (b.due || b.pendingAt)) || (a.pendingAt - b.pendingAt);
+
 function pendingTaskRow(t, who, edits) {
   const first = who[0] || { name: '?', color: 'var(--muted)' };
   const names = esc(who.map(p => p.name).join(' and ') || '?');
   const each = who.length > 1 ? ' each' : '';
-  // A stack of late copies is decided all at once (see stackLate).
-  const ids = t.stack ? ` data-ids="${esc(t.stack.join(','))}"` : '';
-  const title = `${esc(t.title)}${t.stack ? ` <span class="stack-count">×${t.stack.length}</span>` : ''}`;
+  const late = tickedLate(t);
+  const title = `${esc(t.title)}${late ? ` <span class="late-badge">${esc(lateLabel(t, t.pendingAt))}</span>` : ''}`;
   const buttons = `
-        <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}"${ids} data-status="denied">Not done</button>
-        <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}"${ids} data-status="approved">Approve</button>`;
-  if (!tickedLate(t)) {
+        <button type="button" class="btn-outline small" data-action="decide-task" data-id="${esc(t.id)}" data-status="denied">Not done</button>
+        <button type="button" class="btn-approve" data-action="decide-task" data-id="${esc(t.id)}" data-status="approved">Approve</button>`;
+  if (!late) {
     return `
       <div class="adjust">
         ${avatar(first, 40)}
@@ -150,7 +152,7 @@ function pendingTaskRow(t, who, edits) {
     <div class="adjust claim-flex">
       <div class="claim-flex-top">
         ${avatar(first, 40)}
-        <div class="claim-body" style="flex:1"><b>${title}</b><span>${names} · ${t.stack ? `${t.stack.length} missed copies, ticked late; stars are given once` : `done late, worth +${t.points}${each} on time`}</span></div>
+        <div class="claim-body" style="flex:1"><b>${title}</b><span>${names} · done late, full stars are +${t.points}${each}</span></div>
       </div>
       <div class="claim-edit">
         <span class="claim-edit-label">Stars</span>
@@ -219,7 +221,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
       ${pendingTasks.length ? `
         <section class="stack" style="gap:10px">
           <h3>Tasks waiting for OK</h3>
-          ${stackLate([...pendingTasks].sort((a, b) => a.pendingAt - b.pendingAt)).map(t =>
+          ${[...pendingTasks].sort(byOverdue).map(t =>
             pendingTaskRow(t, t.personIds.map(id => byId.get(id)).filter(Boolean), edits)).join('')}
         </section>` : ''}
       ${ticks.length ? `

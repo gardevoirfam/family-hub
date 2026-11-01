@@ -1,6 +1,6 @@
 import { esc, avatar, icons } from '../ui.js';
 import { fmt, greeting, daysBetween, addDays, inWindow } from '../dates.js';
-import { taskView, stackLate } from '../points.js';
+import { taskView, uniqueTasks, lateLabel } from '../points.js';
 import { describe, outfit } from '../weather.js';
 
 const MAX_LATER = 5;
@@ -88,7 +88,8 @@ function renderEvents(groups, peopleById, openEvent) {
 
 const MAX_JOBS = 4;
 
-// Today's tasks for one person: late and stale ones first, then other open
+// Today's tasks for one person: late and stale ones first (most overdue at
+// the top), then other open
 // ones, then done ones, with shared tasks naming the other people on them.
 function jobList(mine, p, peopleById, dayStart) {
   if (!mine.length) return '';
@@ -103,8 +104,8 @@ function jobList(mine, p, peopleById, dayStart) {
         const red = t.overdue || t.stale;
         return `<li class="${t.done ? 'done' : ''} ${red ? 'overdue' : ''}">
           <span class="job-dot" style="${t.done ? `background:${p.color};border-color:${p.color}` : `border-color:${p.color}`}"></span>
-          <span class="job-title">${esc(t.title)}${t.stack ? ` <span class="stack-count">×${t.stack.length}</span>` : ''}${others.length ? ` <span class="job-with">with ${esc(others.join(' and '))}</span>` : ''}</span>
-          <span class="job-time ${red ? 'late' : ''}">${t.done ? 'Done' : t.pending ? 'Waiting for OK' : t.stale ? 'Overdue' : !t.due ? 'Any time' : t.overdue ? 'Late' : daysBetween(dayStart, t.due) > 0 ? `By ${esc(fmt.weekday(t.due))}` : esc(fmt.time(t.due))}</span>
+          <span class="job-title">${esc(t.title)}${others.length ? ` <span class="job-with">with ${esc(others.join(' and '))}</span>` : ''}</span>
+          <span class="job-time ${red ? 'late' : ''}">${t.done ? 'Done' : t.pending ? 'Waiting for OK' : t.stale ? 'Overdue' : !t.due ? 'Any time' : t.overdue ? esc(lateLabel(t)) : daysBetween(dayStart, t.due) > 0 ? `By ${esc(fmt.weekday(t.due))}` : esc(fmt.time(t.due))}</span>
         </li>`;
       }).join('')}
       ${more > 0 ? `<li class="job-more">+${more} more</li>` : ''}
@@ -116,8 +117,8 @@ function renderJobs(people, tasks, peopleById, dayStart) {
     return '<div class="empty">No one is set up yet. Family members appear here once the hub has its data.</div>';
   }
   return people.map(p => {
-    // Late copies of the same task count once, as one stacked row.
-    const mine = stackLate(tasks.filter(t => t.personIds.includes(p.id)));
+    // Each task counts once, however many copies are waiting.
+    const mine = uniqueTasks(tasks.filter(t => t.personIds.includes(p.id)));
     const done = mine.filter(t => t.done).length;
     const left = mine.length - done;
     const pct = mine.length ? Math.round(done * 100 / mine.length) : 0;

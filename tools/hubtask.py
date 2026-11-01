@@ -10,7 +10,10 @@ The login comes from the environment, never from this repo:
 
 Commands:
   generate [--days N] [--dry-run]   create the jobs that open within the next N days
-                                    (default 2) from the chore schedule in settings/schedule
+                                    (default 2) from the chore schedule in settings/schedule,
+                                    after hiding duplicate copies (see dedupe below)
+  dedupe [--dry-run]                keep one copy of each task: while a copy is late and
+                                    not ticked, later open copies of it are hidden
   schedule get                      print the chore schedule as JSON
   schedule set FILE [--dry-run]     replace the chore schedule with FILE (JSON)
   events set FILE [--dry-run]       make the hub's upcoming calendar events match
@@ -25,6 +28,8 @@ Commands:
 The schedule format is described in docs/data-model.md. Generated jobs get the
 id "<chore id>-<due date>", so running generate again never makes duplicates,
 and a job a parent deleted by hand comes back only if it is still upcoming.
+A chore with a late copy that isn't ticked yet gets no new copies until it is:
+the late one stays as the single task, showing how many days late it is.
 
 For testing, FIRESTORE_EMULATOR_HOST and FIREBASE_AUTH_EMULATOR_HOST point the
 script at the Firebase emulators.
@@ -108,6 +113,14 @@ class Hub:
         status, res = http('PATCH', f'{self.docs}/{path}', {'fields': encode_fields(data)}, self.token)
         if status != 200:
             sys.exit(f'Writing {path} failed ({status}): {error_text(res)}')
+
+    def update(self, path, data):
+        """Changes only the given fields of an existing document."""
+        mask = '&'.join(f'updateMask.fieldPaths={k}' for k in data)
+        status, res = http('PATCH', f'{self.docs}/{path}?{mask}&currentDocument.exists=true',
+                           {'fields': encode_fields(data)}, self.token)
+        if status != 200:
+            sys.exit(f'Updating {path} failed ({status}): {error_text(res)}')
 
     def list(self, collection):
         docs, token = [], ''
@@ -298,6 +311,65 @@ def build_job(chore, start, due):
     return job
 
 
+# ---- One copy of each task ------------------------------------------------
+
+def task_key(t):
+    """Copies of the same task for the same people: one chore, one before/after
+    event rule, or the same title (matches taskKey in js/points.js)."""
+    people = ','.join(sorted(t.get('personIds') or ([t['personId']] if t.get('personId') else [])))
+    return f"{t.get('choreId') or t.get('readyId') or t.get('title')}|{people}"
+
+
+def when(v):
+    return parse_when(v, dt.timezone.utc)[0] if isinstance(v, str) else None
+
+
+def dedupe_tasks(hub, tasks, now, dry_run):
+    """Hides duplicate copies (sets removedAt, like a parent's swipe): when the
+    earliest open copy of a task is late, every later open copy goes; and copies
+    ticked late together (the old stacked rows) keep only the earliest one.
+    Returns the keys of tasks that have a late copy still open."""
+    groups = {}
+    for doc_id, t in tasks:
+        if t.get('done') or t.get('removedAt') or not when(t.get('due')):
+            continue
+        groups.setdefault(task_key(t), []).append((when(t['due']), doc_id, t))
+    late_keys, hide = set(), []
+    for key, copies in groups.items():
+        copies.sort(key=lambda c: c[0])
+        still_open = [c for c in copies if not c[2].get('pendingAt')]
+        if still_open and copies[0] is still_open[0]:
+            # The first copy is still open: if it's late, it's the only one.
+            if still_open[0][0] <= now:
+                late_keys.add(key)
+                hide += still_open[1:]
+        else:
+            # The first copy was ticked: later copies that are late too are duplicates.
+            hide += [c for c in still_open if c[0] <= now]
+        # Late ticks within a few seconds of each other were one tap on a stack.
+        ticked = sorted(((when(c[2].get('pendingAt')), c) for c in copies
+                         if when(c[2].get('pendingAt')) and when(c[2]['pendingAt']) > c[0]), key=lambda x: x[0])
+        last = None
+        for at, c in ticked:
+            if last and (at - last[0]).total_seconds() <= 10:
+                hide.append(c if c[0] >= last[1][0] else last[1])
+                if c[0] < last[1][0]:
+                    last = (at, c)
+                continue
+            last = (at, c)
+    verb = 'would hide' if dry_run else 'hid'
+    for due, doc_id, t in hide:
+        print(f"{verb} duplicate {doc_id}: {t.get('title')} due {due.isoformat()}")
+        if not dry_run:
+            hub.update(f'tasks/{doc_id}', {'removedAt': now})
+    print(f"{'Would hide' if dry_run else 'Hid'} {len(hide)} duplicate task(s).")
+    return late_keys
+
+
+def cmd_dedupe(hub, args):
+    dedupe_tasks(hub, hub.list('tasks'), dt.datetime.now(dt.timezone.utc), args.dry_run)
+
+
 # ---- Commands -------------------------------------------------------------
 
 def cmd_generate(hub, args):
@@ -308,9 +380,14 @@ def cmd_generate(hub, args):
     tz = ZoneInfo(schedule.get('timezone') or DEFAULT_TZ)
     now = dt.datetime.now(tz)
     until = now + dt.timedelta(days=args.days)
-    made = kept = 0
+    late_keys = dedupe_tasks(hub, hub.list('tasks'), now, args.dry_run)
+    made = kept = waiting = 0
     for chore in schedule.get('chores', []):
         if chore.get('paused'):
+            continue
+        # A chore whose late copy isn't ticked yet gets no new copies.
+        if task_key({'choreId': chore['id'], 'personIds': chore['personIds']}) in late_keys:
+            waiting += 1
             continue
         for start, due in occurrences(chore, tz, now, until):
             doc_id = f"{chore['id']}-{due.date().isoformat()}"
@@ -324,7 +401,8 @@ def cmd_generate(hub, args):
             else:
                 kept += 1
     verb = 'Would create' if args.dry_run else 'Created'
-    print(f'{verb} {made} job(s); {kept} already existed. Schedule has {len(schedule.get("chores", []))} chore(s).')
+    print(f'{verb} {made} job(s); {kept} already existed; {waiting} chore(s) skipped while a late copy is open. '
+          f'Schedule has {len(schedule.get("chores", []))} chore(s).')
 
 
 def parse_when(s, tz):
@@ -606,6 +684,8 @@ def main():
     d.add_argument('action', choices=['set'])
     d.add_argument('file')
     d.add_argument('--dry-run', action='store_true')
+    u = sub.add_parser('dedupe', help='hide duplicate copies of tasks')
+    u.add_argument('--dry-run', action='store_true')
     r = sub.add_parser('rewards', help='read or replace the rewards catalog')
     r.add_argument('action', choices=['get', 'set'])
     r.add_argument('file', nargs='?')
@@ -614,7 +694,7 @@ def main():
 
     hub = Hub()
     hub.sign_in()
-    {'generate': cmd_generate, 'schedule': cmd_schedule, 'events': cmd_events, 'digest': cmd_digest, 'rewards': cmd_rewards}[args.cmd](hub, args)
+    {'generate': cmd_generate, 'dedupe': cmd_dedupe, 'schedule': cmd_schedule, 'events': cmd_events, 'digest': cmd_digest, 'rewards': cmd_rewards}[args.cmd](hub, args)
 
 
 if __name__ == '__main__':

@@ -35,8 +35,9 @@ const tasks = [
   { id: 't7', personId: 'leo', title: 'Water the plants', due: at(0, 16), points: 5, done: false },
   { id: 't8', personId: 'leo', title: 'Put toys away', due: at(0, 19), points: 5, done: false },
   { id: 't9', personId: 'leo', title: 'Spelling practice', due: at(2, 17), points: 10, done: false },
-  // Missed three days running: shows as one stacked late task.
-  ...[-3, -2, -1].map(d => ({ id: `fish${d}`, personId: 'leo', choreId: 'feed-fish', title: 'Feed the fish', due: at(d, 19), points: 2, done: false })),
+  // Missed three days ago and not done since: one task, shown as 3 days late
+  // (the later copies stay hidden until it's done).
+  ...[-3, -2, -1, 0].map(d => ({ id: `fish${d}`, personId: 'leo', choreId: 'feed-fish', title: 'Feed the fish', due: at(d, 19), points: 2, done: false })),
   { id: 't11', personId: 'mom', title: 'Sign the field trip form', due: at(0, 12), points: 5, done: false },
   { id: 't12', personId: 'mom', title: 'Grocery run', due: at(0, 14), points: 10, done: true, doneAt: at(0, 11) },
   { id: 't14', personId: 'dad', title: "Fix Leo's bike tire", due: at(0, 15), points: 10, done: false },
@@ -57,6 +58,7 @@ tasks.forEach(t => {
   t.cooldownDays = t.cooldownDays || 0;
   t.needsApproval = !!t.needsApproval;
   t.pendingAt = t.pendingAt || null;
+  t.award = Number.isInteger(t.award) ? t.award : null;
 });
 
 // Habit days for the past week, relative to today (0 = today, 1 = yesterday...).
@@ -182,6 +184,7 @@ export const source = {
       if (change.pending) t.pendingAt = new Date();
       else if (change.clearPending) t.pendingAt = null;
       if (change.remove) t.removedAt = new Date();
+      if ('award' in change) t.award = change.award;
     }
     if (habit) {
       const h = habits.find(x => x.id === habit.id);

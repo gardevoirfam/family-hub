@@ -112,7 +112,7 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
         <section class="card side">
           <h2>How stars work</h2>
           <div class="kv"><span>Task done on time</span><b>Full stars</b></div>
-          <div class="kv"><span>Task done late</span><b>A parent decides</b></div>
+          <div class="kv"><span>Task done late</span><b>Full stars, a parent can lower them</b></div>
           <div class="kv"><span>Habit ticked</span><b>Its stars</b></div>
           <div class="kv"><span>Habit's weekly goal met</span><b>Its bonus</b></div>
         </section>
