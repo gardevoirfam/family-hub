@@ -36,6 +36,8 @@ const toTask = d => {
     cooldownDays: Number(x.cooldownDays) > 0 ? Number(x.cooldownDays) : 0,
     needsApproval: x.needsApproval === true,
     pendingAt: toDate(x.pendingAt),
+    // Stars a parent gave for a late task (none set: full points).
+    award: Number.isInteger(x.award) ? x.award : null,
     removedAt: toDate(x.removedAt)
   };
 };
@@ -211,6 +213,7 @@ export const source = {
           maxQty: Number(x.maxQty) || 0,
           order: Number.isFinite(x.order) ? x.order : 999,
           weekly: x.weekly === true,
+          keptBy: Array.isArray(x.keptBy) ? x.keptBy : [],
           active: x.active !== false
         };
       }));
@@ -291,8 +294,10 @@ export const source = {
   // Applies one check-off as a single batch: the task or habit, the person's
   // points and streak, and the matching pointsLog entries. A batch (rather than
   // a transaction) still works offline and syncs when Wi-Fi returns.
-  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate }) {
+  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate, rewardKeep }) {
     const batch = fs.writeBatch(db);
+    // Who wants to keep a weekly reward; the Monday rotation makes it permanent.
+    if (rewardKeep) batch.update(fs.doc(db, 'rewards', rewardKeep.id), { keptBy: rewardKeep.keptBy });
     if (claimCreate) {
       const fields = {
         personId: claimCreate.personId, rewardId: claimCreate.rewardId,
@@ -322,6 +327,8 @@ export const source = {
       if (change.pending) fields.pendingAt = fs.serverTimestamp();
       else if (change.clearPending) fields.pendingAt = null;
       if (change.remove) fields.removedAt = fs.serverTimestamp();
+      // Stars a parent gave for a late task; cleared when it's unticked.
+      if ('award' in change) fields.award = change.award;
       batch.update(fs.doc(db, 'tasks', change.id), fields);
     }
     if (habit) {

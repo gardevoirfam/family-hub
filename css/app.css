@@ -218,8 +218,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .job-dot { flex: none; align-self: center; width: 12px; height: 12px; border-radius: 50%; border: 2px solid; }
 .job-title { flex: 1; min-width: 0; line-height: 1.3; }
 .job-with { font-weight: 600; color: var(--muted); }
-/* How many late copies of the same task a stacked row stands for. */
-.stack-count { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: 0.8em; font-weight: 800; line-height: 1.5; color: #fff; background: var(--danger); vertical-align: 1px; }
+/* How many days late a task is, e.g. "3 days late". */
+.late-badge { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: 0.8em; font-weight: 800; line-height: 1.5; color: #fff; background: var(--danger); vertical-align: 1px; }
 .job-time { flex: none; font-size: 13px; color: var(--muted); }
 .job-time.late { color: var(--danger); }
 .member-jobs li.overdue .job-title { color: var(--danger); }
@@ -314,6 +314,8 @@ button.event.open { border-color: var(--line-2); background: #FFFFFF; }
 .reward-detail { font-size: 15px; color: var(--muted); flex: 1; }
 .reward-btn { height: 52px; border-radius: 14px; border: 0; font-size: 16px; font-weight: 800; background: var(--track); color: var(--muted); }
 .reward-btn:disabled { cursor: not-allowed; }
+.keep-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.keep-btn { flex: none; height: 40px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--track); background: #FFFFFF; font-size: 15px; font-weight: 800; color: var(--muted); }
 .reward-group { grid-column: 1 / -1; margin: 6px 0 -4px; font-family: var(--display); font-weight: 600; font-size: 20px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .reward-group:not(:first-child) { margin-top: 14px; }
 .reward-group span { font-family: var(--body); font-size: 14px; font-weight: 700; color: var(--muted); }
