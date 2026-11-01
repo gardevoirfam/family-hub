@@ -28,9 +28,8 @@ function dueLabel(task, dayStart, dayEnd) {
   return `${fmt.weekday(task.due)}, ${fmt.shortDate(task.due)}`;
 }
 
-// Late: past its due time and still open, or due on an earlier day and
-// finished today. Stale: a repeating task ready again for a while. Today: due
-// today, a task whose window covers today, or an any-time task that can be
+// Late: past its due time and not done yet (once done, it leaves the list).
+// Stale: a repeating task ready again for a while. Today: due today, a task whose window covers today, or an any-time task that can be
 // done now. Coming up: due later and not done yet. Resting: a repeating task
 // in its cooldown. Each task shows once (see uniqueTasks), and late ones go
 // most overdue first. Expects tasks from taskView.
@@ -56,7 +55,7 @@ export function sortTasks(tasks, dayStart, dayEnd) {
       if (!t.done) sections.later.push(t);
     } else if (t.due >= dayStart) {
       sections.today.push(t);
-    } else if (!t.done || (t.doneAt && t.doneAt >= dayStart)) {
+    } else if (!t.done) {
       sections.late.push(t);
     }
   }

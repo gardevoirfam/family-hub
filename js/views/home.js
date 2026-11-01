@@ -45,14 +45,14 @@ function chipsFor(event, peopleById) {
 }
 
 // Tasks that count toward today's progress: anything due by tonight that is
-// still open, plus anything due today or finished today, plus tasks whose
+// still open, plus anything due today (a late task done today drops off), plus tasks whose
 // start-to-due window covers today, plus any-time tasks that can be done now
 // or were done today. Expects tasks from taskView.
 export function todaysTasks(tasks, dayStart, dayEnd) {
   return tasks.filter(t => {
     if (!t.due) return !t.done || (t.doneAt && t.doneAt >= dayStart);
     return inWindow(t, dayStart, dayEnd) || (t.due < dayEnd &&
-      (!t.done || t.due >= dayStart || (t.doneAt && t.doneAt >= dayStart)));
+      (!t.done || t.due >= dayStart));
   });
 }
 
