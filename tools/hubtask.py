@@ -13,7 +13,7 @@ Commands:
                                     (default 2) from the chore schedule in settings/schedule,
                                     after hiding duplicate copies (see dedupe below)
   dedupe [--dry-run]                keep one copy of each task: while a copy is late and
-                                    not ticked, later open copies of it are hidden
+                                    not ticked, later copies that are late too are hidden
   schedule get                      print the chore schedule as JSON
   schedule set FILE [--dry-run]     replace the chore schedule with FILE (JSON)
   events set FILE [--dry-run]       make the hub's upcoming calendar events match
@@ -28,8 +28,10 @@ Commands:
 The schedule format is described in docs/data-model.md. Generated jobs get the
 id "<chore id>-<due date>", so running generate again never makes duplicates,
 and a job a parent deleted by hand comes back only if it is still upcoming.
-A chore with a late copy that isn't ticked yet gets no new copies until it is:
-the late one stays as the single task, showing how many days late it is.
+While a copy of a task is late and not ticked, the app shows only that copy
+(with how many days late it is). Upcoming copies stay in Firestore, so the next
+one shows as soon as the late one is ticked; only copies that go late behind it
+are hidden as duplicates.
 
 For testing, FIRESTORE_EMULATOR_HOST and FIREBASE_AUTH_EMULATOR_HOST point the
 script at the Firebase emulators.
@@ -326,23 +328,25 @@ def when(v):
 
 def dedupe_tasks(hub, tasks, now, dry_run):
     """Hides duplicate copies (sets removedAt, like a parent's swipe): when the
-    earliest open copy of a task is late, every later open copy goes; and copies
-    ticked late together (the old stacked rows) keep only the earliest one.
-    Returns the keys of tasks that have a late copy still open."""
+    earliest open copy of a task is late, later copies that are late too go;
+    and copies ticked late together (the old stacked rows) keep only the
+    earliest one. Upcoming copies are never hidden: the app already shows only
+    the earliest open copy, and hiding them for good lost them once the late
+    one was ticked."""
     groups = {}
     for doc_id, t in tasks:
         if t.get('done') or t.get('removedAt') or not when(t.get('due')):
             continue
         groups.setdefault(task_key(t), []).append((when(t['due']), doc_id, t))
-    late_keys, hide = set(), []
+    hide = []
     for key, copies in groups.items():
         copies.sort(key=lambda c: c[0])
         still_open = [c for c in copies if not c[2].get('pendingAt')]
         if still_open and copies[0] is still_open[0]:
-            # The first copy is still open: if it's late, it's the only one.
+            # The first copy is still open: if it's late, copies that went late
+            # behind it are duplicates.
             if still_open[0][0] <= now:
-                late_keys.add(key)
-                hide += still_open[1:]
+                hide += [c for c in still_open[1:] if c[0] <= now]
         else:
             # The first copy was ticked: later copies that are late too are duplicates.
             hide += [c for c in still_open if c[0] <= now]
@@ -363,7 +367,6 @@ def dedupe_tasks(hub, tasks, now, dry_run):
         if not dry_run:
             hub.update(f'tasks/{doc_id}', {'removedAt': now})
     print(f"{'Would hide' if dry_run else 'Hid'} {len(hide)} duplicate task(s).")
-    return late_keys
 
 
 def cmd_dedupe(hub, args):
@@ -380,14 +383,10 @@ def cmd_generate(hub, args):
     tz = ZoneInfo(schedule.get('timezone') or DEFAULT_TZ)
     now = dt.datetime.now(tz)
     until = now + dt.timedelta(days=args.days)
-    late_keys = dedupe_tasks(hub, hub.list('tasks'), now, args.dry_run)
-    made = kept = waiting = 0
+    dedupe_tasks(hub, hub.list('tasks'), now, args.dry_run)
+    made = kept = 0
     for chore in schedule.get('chores', []):
         if chore.get('paused'):
-            continue
-        # A chore whose late copy isn't ticked yet gets no new copies.
-        if task_key({'choreId': chore['id'], 'personIds': chore['personIds']}) in late_keys:
-            waiting += 1
             continue
         for start, due in occurrences(chore, tz, now, until):
             doc_id = f"{chore['id']}-{due.date().isoformat()}"
@@ -401,7 +400,7 @@ def cmd_generate(hub, args):
             else:
                 kept += 1
     verb = 'Would create' if args.dry_run else 'Created'
-    print(f'{verb} {made} job(s); {kept} already existed; {waiting} chore(s) skipped while a late copy is open. '
+    print(f'{verb} {made} job(s); {kept} already existed. '
           f'Schedule has {len(schedule.get("chores", []))} chore(s).')
 
 
