@@ -33,6 +33,8 @@ readable ids (for example `maya`) make the data easier to work with.
 | `done`     | bool      | **Must be set** (use `false` for new tasks); the home page queries on it. The iPad may change it. |
 | `doneAt`   | timestamp | Set when ticked done, `null` otherwise. The iPad may change it. |
 | `cooldownDays` | number | Optional. Makes a **repeating** task: it has no `due`, can be done any time, and after each completion it rests for this many days (fractions allowed) before it can be done again. One document is reused; every completion is in `pointsLog`. Once it has been ready again for 3 days without being done, the app shows it in red at the top as "Not done in a while" (`STALE_DAYS` in js/points.js). |
+| `onlyOne` | bool | Optional, for a shared task. Only one of `personIds` does it: whoever ticks it gets the stars, and it shows as done ("Done by Evelyn") for the others. |
+| `doneBy` | string | Set by the iPad on an `onlyOne` task: the id of the person who ticked it (cleared when unticked or not approved). Approval pays only this person. |
 | `needsApproval` | bool | Optional. Ticking sets `pendingAt` instead of `done`; a grown-up approves it in the Parents panel, which pays the points (judged by when it was ticked) and starts any cooldown then. |
 | `pendingAt` | timestamp | Set by the iPad while waiting for approval, `null` otherwise. A task ticked after its `due` also waits here; it is worth full points unless the parent lowers them (down to 0). |
 | `award`    | int       | Set by the iPad when a parent approves a late task: the stars each person got. `null` otherwise. |
@@ -149,6 +151,7 @@ App settings, written by the Claude task login.
 - `repeat`: `daily` (optional `days` limits it to those weekdays) or `weekly`.
 - `due`: `HH:MM` for daily chores, `<day> HH:MM` for weekly ones. `opens` (weekly only) gives the job a window, such as Friday to Sunday.
 - `paused`: optional; `true` stops new copies without deleting the chore.
+- `onlyOne`: optional; `true` makes each copy an only-one task (one person does it and gets the stars; see `tasks.onlyOne`).
 
 `ready` (optional, in the same document): "be ready" tasks made from calendar events.
 Each time `tools/hubtask.py events set` copies the calendar, every upcoming timed event

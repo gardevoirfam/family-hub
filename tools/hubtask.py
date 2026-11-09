@@ -239,6 +239,8 @@ def check_schedule(schedule):
             problems.append(f'{name}: points must be a whole number')
         if not c.get('personIds'):
             problems.append(f'{name}: personIds must list at least one person')
+        if 'onlyOne' in c and not isinstance(c['onlyOne'], bool):
+            problems.append(f'{name}: onlyOne must be true or false')
         try:
             if c.get('repeat') == 'daily':
                 parse_time(c['due'])
@@ -310,6 +312,8 @@ def build_job(chore, start, due):
     }
     if start:
         job['start'] = start
+    if chore.get('onlyOne'):
+        job['onlyOne'] = True
     return job
 
 

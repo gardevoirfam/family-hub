@@ -5,7 +5,7 @@ import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, taskPeople, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 import { loadWeather } from './weather.js';
 
@@ -327,7 +327,7 @@ async function handleAction(el) {
   if (action === 'decide-task' && state.parents.unlocked) {
     const task = state.pendingTasks.find(t => t.id === id);
     if (!task || !task.pendingAt) return;
-    const people = task.personIds.map(personById).filter(Boolean);
+    const people = taskPeople(task, personById);
     if (!people.length) return;
     const approve = el.dataset.status === 'approved';
     const change = approveTaskChange(task, people, approve, new Date(), lateTaskDraft(task, state.parents.edits));
@@ -387,17 +387,18 @@ async function handleAction(el) {
   if (action === 'toggle-task') {
     const task = state.focus.tasks.find(t => t.id === id);
     if (!task) return;
-    // A shared task pays everyone on it.
-    const people = task.personIds.map(personById).filter(Boolean);
-    if (!people.length) people.push(person);
     // A task can't be ticked before its day (or window) starts.
     const status = taskState(task);
+    // A shared task pays everyone on it; an only-one task pays whoever ticks it
+    // (and unticking takes the stars back from that person).
+    const people = taskPeople(task, personById, person, status === 'open');
     if (status === 'later') {
       showToast(`${task.title} can be done from ${fmt.weekday(opensAt(task))}`);
       return render();
     }
     // Ticking an open task does it; ticking a done or waiting one undoes that.
     const change = taskChange(task, people, status === 'open');
+    if (task.onlyOne) change.task.doneBy = status === 'open' ? person.id : null;
     const names = people.map(p => p.name).join(' and ');
     if (change.pending) showToast(`${task.title}: waiting for a grown-up to OK it`);
     else if (change.delta > 0) showToast(`Nice work, ${names}! +${change.delta} ${change.delta === 1 ? 'star' : 'stars'}${people.length > 1 ? ' each' : ''}`);

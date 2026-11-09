@@ -38,6 +38,9 @@ const toTask = d => {
     pendingAt: toDate(x.pendingAt),
     // Stars a parent gave for a late task (none set: full points).
     award: Number.isInteger(x.award) ? x.award : null,
+    // A shared task only one person can do: whoever ticks it gets the stars.
+    onlyOne: x.onlyOne === true,
+    doneBy: typeof x.doneBy === 'string' ? x.doneBy : null,
     removedAt: toDate(x.removedAt)
   };
 };
@@ -329,6 +332,8 @@ export const source = {
       if (change.remove) fields.removedAt = fs.serverTimestamp();
       // Stars a parent gave for a late task; cleared when it's unticked.
       if ('award' in change) fields.award = change.award;
+      // Who ticked an only-one task; cleared when it's unticked or declined.
+      if ('doneBy' in change) fields.doneBy = change.doneBy;
       batch.update(fs.doc(db, 'tasks', change.id), fields);
     }
     if (habit) {

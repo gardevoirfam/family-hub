@@ -45,6 +45,7 @@ const tasks = [
   { id: 't16', personIds: ['maya', 'leo'], title: 'Fold the laundry together', start: at(-1, 0), due: at(1, 20), points: 10, done: false },
   // Repeating tasks with a cooldown: no due date, back 4 days after each time.
   { id: 't17', personIds: ['maya', 'leo'], title: 'Clean the basement', points: 1, cooldownDays: 4, needsApproval: true, done: false },
+  { id: 't20', personIds: ['maya', 'leo'], title: 'Check the hamster', due: at(0, 20), points: 1, onlyOne: true, done: false },
   { id: 't18', personId: 'maya', title: 'Clean your room', points: 1, cooldownDays: 4, needsApproval: true, done: true, doneAt: at(-1, 18) },
   // Ready again since 4 days ago and not done, so it shows as stale.
   { id: 't19', personId: 'leo', title: 'Vacuum the stairs', points: 5, cooldownDays: 3, done: true, doneAt: at(-7, 17) }
@@ -59,6 +60,8 @@ tasks.forEach(t => {
   t.needsApproval = !!t.needsApproval;
   t.pendingAt = t.pendingAt || null;
   t.award = Number.isInteger(t.award) ? t.award : null;
+  t.onlyOne = !!t.onlyOne;
+  t.doneBy = t.doneBy || null;
 });
 
 // Habit days for the past week, relative to today (0 = today, 1 = yesterday...).
@@ -185,6 +188,7 @@ export const source = {
       else if (change.clearPending) t.pendingAt = null;
       if (change.remove) t.removedAt = new Date();
       if ('award' in change) t.award = change.award;
+      if ('doneBy' in change) t.doneBy = change.doneBy;
     }
     if (habit) {
       const h = habits.find(x => x.id === habit.id);
