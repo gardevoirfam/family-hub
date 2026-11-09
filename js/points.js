@@ -193,6 +193,19 @@ export function taskView(task, now = new Date()) {
   };
 }
 
+// Who gets the stars for a task. A shared task pays everyone on it; an
+// only-one task (onlyOne) pays just the person who ticked it (doneBy), or
+// `ticker` when it's being ticked now. `byId` looks a person up by id.
+export function taskPeople(task, byId, ticker = null, ticking = false) {
+  if (task.onlyOne) {
+    const by = !ticking && task.doneBy ? byId(task.doneBy) : null;
+    const who = by || ticker;
+    return who ? [who] : [];
+  }
+  const people = task.personIds.map(byId).filter(Boolean);
+  return people.length || !ticker ? people : [ticker];
+}
+
 // Builds the change for ticking or unticking a task. A shared task pays every
 // person on it the full value, so `people` is everyone the task belongs to.
 // A task with needsApproval, or one ticked after it was due, only goes to
@@ -234,7 +247,7 @@ function pointsForTask(task, people, done, at, doneAt, award = null) {
 // cooldown starts then). A late task pays `award` points each (full points
 // if the parent didn't change them). Declining puts it back to open.
 export function approveTaskChange(task, people, approve, now = new Date(), award = null) {
-  if (!approve) return { task: { id: task.id, clearPending: true }, logs: [], delta: 0 };
+  if (!approve) return { task: { id: task.id, clearPending: true, ...(task.doneBy ? { doneBy: null } : {}) }, logs: [], delta: 0 };
   const at = task.pendingAt || now;
   const late = isLate(task, at);
   return pointsForTask(task, people, true, at, at, late ? Math.max(0, award ?? task.points) : null);

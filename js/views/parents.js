@@ -222,7 +222,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
         <section class="stack" style="gap:10px">
           <h3>Tasks waiting for OK</h3>
           ${[...pendingTasks].sort(byOverdue).map(t =>
-            pendingTaskRow(t, t.personIds.map(id => byId.get(id)).filter(Boolean), edits)).join('')}
+            pendingTaskRow(t, (t.onlyOne && t.doneBy ? [t.doneBy] : t.personIds).map(id => byId.get(id)).filter(Boolean), edits)).join('')}
         </section>` : ''}
       ${ticks.length ? `
         <section class="stack" style="gap:10px">

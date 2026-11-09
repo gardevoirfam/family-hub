@@ -68,7 +68,14 @@ export function sortTasks(tasks, dayStart, dayEnd) {
 }
 
 // Names the other people on a shared task, e.g. "With Wesley".
+// An only-one task says who did it, or who else could, e.g. "Or Wesley".
 function withLabel(t, p, people) {
+  const name = id => (people.find(x => x.id === id) || {}).name;
+  if (t.onlyOne) {
+    if ((t.done || t.pending) && t.doneBy) return t.doneBy === p.id ? '' : ` · Done by ${name(t.doneBy) || 'someone else'}`;
+    const others = t.personIds.filter(id => id !== p.id).map(name).filter(Boolean);
+    return others.length ? ` · Or ${others.join(' or ')}` : '';
+  }
   const others = t.personIds.filter(id => id !== p.id)
     .map(id => (people.find(x => x.id === id) || {}).name).filter(Boolean);
   return others.length ? ` · With ${others.join(' and ')}` : '';
