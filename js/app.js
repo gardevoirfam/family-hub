@@ -472,7 +472,8 @@ function mainHtml(route) {
       now, ...dayBounds(),
       person: state.people.find(p => p.id === route.id),
       people: state.people,
-      tasks: state.focus.tasks, habits: state.focus.habits, log: state.focus.log, loading: state.focus.loading
+      tasks: state.focus.tasks, habits: state.focus.habits, log: state.focus.log, loading: state.focus.loading,
+      openNotes: state.openEvent
     });
   }
   if (route.name === 'rewards') {
