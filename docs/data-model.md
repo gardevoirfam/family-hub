@@ -27,6 +27,7 @@ readable ids (for example `maya`) make the data easier to work with.
 | `personId` | string    | Id of a `people` document. Leave empty for a shared job. |
 | `personIds`| string[]  | Optional. For a shared job, everyone it belongs to, e.g. `["evelyn", "wesley"]`. It shows on each of their pages and one tick gives every one of them the full points. |
 | `title`    | string    | |
+| `notes`    | string    | Optional instructions. On the person page the task shows a "How to" hint; tapping the task's text opens them. Line breaks are kept. |
 | `start`    | timestamp | Optional. When the job opens, for a job with a window such as Friday to Sunday. It shows under Today for every day of the window. |
 | `due`      | timestamp | When the task is due (the end of the window). On time means done before this. Leave it out for an any-time or repeating task (full points whenever it's done). |
 | `points`   | int       | Full value. A late tick waits for a parent; it shows full points, and the parent can lower them down to 0. |
@@ -152,6 +153,7 @@ App settings, written by the Claude task login.
 - `due`: `HH:MM` for daily chores, `<day> HH:MM` for weekly ones. `opens` (weekly only) gives the job a window, such as Friday to Sunday.
 - `paused`: optional; `true` stops new copies without deleting the chore.
 - `onlyOne`: optional; `true` makes each copy an only-one task (one person does it and gets the stars; see `tasks.onlyOne`).
+- `notes`: optional instructions copied onto each copy (see `tasks.notes`).
 
 `ready` (optional, in the same document): "be ready" tasks made from calendar events.
 Each time `tools/hubtask.py events set` copies the calendar, every upcoming timed event

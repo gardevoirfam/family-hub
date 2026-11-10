@@ -239,6 +239,8 @@ def check_schedule(schedule):
             problems.append(f'{name}: points must be a whole number')
         if not c.get('personIds'):
             problems.append(f'{name}: personIds must list at least one person')
+        if 'notes' in c and not isinstance(c['notes'], str):
+            problems.append(f'{name}: notes must be text')
         if 'onlyOne' in c and not isinstance(c['onlyOne'], bool):
             problems.append(f'{name}: onlyOne must be true or false')
         try:
@@ -314,6 +316,8 @@ def build_job(chore, start, due):
         job['start'] = start
     if chore.get('onlyOne'):
         job['onlyOne'] = True
+    if chore.get('notes'):
+        job['notes'] = str(chore['notes'])
     return job
 
 

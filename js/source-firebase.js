@@ -27,6 +27,8 @@ const toTask = d => {
     // Everyone the task belongs to. Shared tasks list several people in personIds.
     personIds: Array.isArray(x.personIds) && x.personIds.length ? x.personIds : (x.personId ? [x.personId] : []),
     title: x.title || '',
+    // Optional instructions, shown when the task is tapped on the person page.
+    notes: typeof x.notes === 'string' ? x.notes : '',
     start: toDate(x.start),
     due: toDate(x.due),
     points: Number(x.points) || 0,

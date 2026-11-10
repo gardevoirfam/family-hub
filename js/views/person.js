@@ -81,7 +81,18 @@ function withLabel(t, p, people) {
   return others.length ? ` · With ${others.join(' and ')}` : '';
 }
 
-function taskRow(t, p, people, now, dayStart, dayEnd) {
+const noteIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>';
+
+// A task with instructions: tapping its text opens them under the title.
+function taskBody(t, inner, openNotes) {
+  if (!t.notes) return `<div class="task-body">${inner}</div>`;
+  const open = openNotes === t.id;
+  return `<button type="button" class="task-body has-notes" data-action="toggle-event" data-id="${esc(t.id)}"
+    aria-expanded="${open ? 'true' : 'false'}">${inner}
+    ${open ? `<div class="event-notes">${esc(t.notes)}</div>` : `<span class="chip note-hint">${noteIcon}How to</span>`}</button>`;
+}
+
+function taskRow(t, p, people, now, dayStart, dayEnd, openNotes) {
   const value = taskValue(t);
   // How late it is now, or was when it was ticked (if still waiting for OK).
   const lateAt = t.overdue ? now : t.pending && t.due && t.pendingAt > t.due ? t.pendingAt : null;
@@ -102,10 +113,9 @@ function taskRow(t, p, people, now, dayStart, dayEnd) {
         aria-label="${esc(label)}" ${t.later ? 'aria-disabled="true"' : ''} style="${style}">
         ${t.done ? check(26) : t.pending ? hourglass : ''}
       </button>
-      <div class="task-body">
+      ${taskBody(t, `
         <div class="task-title">${esc(t.title)}${lateAt ? ` <span class="late-badge">${esc(lateLabel(t, lateAt))}</span>` : ''}</div>
-        <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>
-      </div>
+        <div class="task-due ${late ? 'late' : ''}">${clock}${esc(dueLabel(t, dayStart, dayEnd) + withLabel(t, p, people))}</div>`, openNotes)}
       <div class="pts" style="${t.done ? '' : `background:${p.soft};color:${p.color}`}">${icons.star}+${value}</div>
     </div>
     </div>`;
@@ -183,7 +193,7 @@ export function habitGrid(habits, p, today, { parent = false, weeksBack = 0 } = 
   return `<div class="habit-grid"><div></div>${head}${rows}</div>`;
 }
 
-export function renderPerson({ person: p, people = [], tasks, habits, log, loading, now, today, dayStart, dayEnd }) {
+export function renderPerson({ person: p, people = [], tasks, habits, log, loading, now, today, dayStart, dayEnd, openNotes = null }) {
   if (!p) {
     return `<div class="card"><h2>Not found</h2><p class="note">That person isn't in the hub. <a href="#/home">Go home</a>.</p></div>`;
   }
@@ -223,7 +233,7 @@ export function renderPerson({ person: p, people = [], tasks, habits, log, loadi
           : groups.map(g => `
             <div class="task-group">
               <div class="group-head"><span class="group-label ${g.cls}">${g.label}</span>${g.note ? `<span class="note">${g.note}</span>` : ''}</div>
-              ${g.list.map(t => taskRow(t, p, people, now, dayStart, dayEnd)).join('')}
+              ${g.list.map(t => taskRow(t, p, people, now, dayStart, dayEnd, openNotes)).join('')}
             </div>`).join('')}
       </section>
       <section class="card stack" aria-labelledby="habits-h">

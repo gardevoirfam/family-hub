@@ -32,7 +32,7 @@ const tasks = [
   { id: 't2', personId: 'maya', title: 'Unload the dishwasher', due: at(0, 17), points: 10, done: false },
   { id: 't3', personId: 'maya', title: 'Return library books', due: at(-1, 17), points: 10, done: false },
   { id: 't6', personId: 'leo', title: 'Make your bed', due: at(0, 9), points: 5, done: true, doneAt: at(0, 8, 30) },
-  { id: 't7', personId: 'leo', title: 'Water the plants', due: at(0, 16), points: 5, done: false },
+  { id: 't7', personId: 'leo', title: 'Water the plants', notes: 'Fill the green can halfway.\nWater the kitchen plants, then the ones by the stairs.', due: at(0, 16), points: 5, done: false },
   { id: 't8', personId: 'leo', title: 'Put toys away', due: at(0, 19), points: 5, done: false },
   { id: 't9', personId: 'leo', title: 'Spelling practice', due: at(2, 17), points: 10, done: false },
   // Missed three days ago and not done since: one task, shown as 3 days late
