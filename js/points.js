@@ -200,7 +200,8 @@ export function taskPeople(task, byId, ticker = null, ticking = false) {
   if (task.onlyOne) {
     const by = !ticking && task.doneBy ? byId(task.doneBy) : null;
     const who = by || ticker;
-    return who ? [who] : [];
+    if (who) return [who];
+    // Ticked before it became only-one (no doneBy): approving pays everyone on it.
   }
   const people = task.personIds.map(byId).filter(Boolean);
   return people.length || !ticker ? people : [ticker];
