@@ -197,7 +197,24 @@ function habitSection(people, habits, habitPerson, habitWeek) {
     </section>`;
 }
 
-function controls({ people, claims, allHabits = [], pendingTasks = [], log, edits = {}, habitPerson, habitWeek = 0 }) {
+// Rewards the kids kept from a weekly pick (ids start with "wk-" and they are
+// no longer weekly). A parent can remove one; it is hidden, not deleted.
+function keptSection(rewards) {
+  const kept = rewards.filter(r => r.active && !r.weekly && r.id.startsWith('wk-'))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  if (!kept.length) return '';
+  return `
+      <section class="stack" style="gap:10px">
+        <h3>Kept rewards</h3>
+        ${kept.map(r => `
+          <div class="adjust">
+            <div class="claim-body" style="flex:1"><b>${esc(r.title)}</b><span>${r.cost} stars</span></div>
+            <button type="button" class="btn-outline small" data-action="remove-reward" data-id="${esc(r.id)}">Remove</button>
+          </div>`).join('')}
+      </section>`;
+}
+
+function controls({ people, claims, rewards = [], allHabits = [], pendingTasks = [], log, edits = {}, habitPerson, habitWeek = 0 }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const pending = claims.filter(c => c.status === 'pending');
   const ticks = pendingHabitTicks(allHabits);
@@ -244,6 +261,7 @@ function controls({ people, claims, allHabits = [], pendingTasks = [], log, edit
         ${!pending.length ? '<p class="note" style="font-size:15px">Nothing waiting right now.</p>' : pending.map(c =>
           claimRow(c, byId.get(c.personId) || { name: '?', color: 'var(--muted)', points: 0 }, edits)).join('')}
       </section>
+      ${keptSection(rewards)}
       ${habitSection(people, allHabits, habitPerson, habitWeek)}
       ${log.length ? `
         <section class="stack" style="gap:6px">

@@ -87,7 +87,8 @@ Written with `tools/hubtask.py rewards set FILE` (a JSON list of these, each wit
 | `order`  | int    | Optional sort order on the Rewards page (then by cost). |
 | `weekly` | bool   | Optional. `true` for the 4 rotating "This week's rewards" slots, shown in their own group at the top of the Rewards page. The weekly reward routine replaces these every Monday and leaves the others alone. |
 | `keptBy` | array  | Optional. Person ids who tapped Keep on a weekly reward. The iPad may change it. On Monday the weekly reward routine makes a kept reward permanent (drops `weekly` and `keptBy`) instead of rotating it out. |
-| `active` | bool   | Hidden when `false`. |
+| `unlock` | map    | Optional. Locks the reward behind weekly habit goals; see **Locked rewards** below. |
+| `active` | bool   | Hidden when `false`. A parent can remove a kept reward (id starting `wk-`, no longer weekly) in Parent controls, which sets this to `false`. |
 
 - **fixed**: claiming spends `cost` right away; declining gives it back.
 - **flexible** (e.g. a Pokémon pack): claiming spends nothing. In the Parents panel a
@@ -95,6 +96,16 @@ Written with `tools/hubtask.py rewards set FILE` (a JSON list of these, each wit
 - **perUnit** (e.g. screen time, 1 point = 15 minutes): the kid picks how many units and
   claiming spends `quantity × cost`. When approving, a grown-up can change the quantity
   and the points per unit; the difference is taken or given back.
+
+**Locked rewards.** `unlock` is
+`{ since: "YYYY-MM-DD", perWeek: 1, habits: [{ habit: "homework", times: "goal", label: "Homework" }, ...] }`.
+`habit` is the part of the habit id after the person (`homework` matches `evelyn-homework`);
+`times` is how many approved ticks (or saved days) that habit needs in the week, or `"goal"`
+for the habit's own weekly goal; `label` is the name shown on the card. Each Monday-to-Sunday
+week from `since` in which a person meets every goal earns `perWeek` claims (default 1), as soon
+as the last goal is met. Unused claims carry over to later weeks; every claim of the reward that
+is not declined uses one up. The card is greyed out with the goals and this week's progress
+until the person has a claim left, and hidden for anyone who has none of its habits.
 
 ## `claims/{claimId}`
 

@@ -5,7 +5,7 @@ import { renderHome, tickClock } from './views/home.js';
 import { renderPerson } from './views/person.js';
 import { renderRewards } from './views/rewards.js';
 import { renderParents, claimDraft, lateTaskDraft } from './views/parents.js';
-import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, taskPeople, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
+import { taskChange, habitChange, claimChange, decideChange, approveClaimChange, maxUnits, rewardType, claimLabel, adjustChange, approveHabitChange, parentHabitDayChange, canParentSet, approveTaskChange, unlockStatus, taskPeople, taskState, opensAt, canTick, canSave, saveDayChange, SAVE_COST, weekStart } from './points.js';
 import { hashPin } from './pin.js';
 import { loadWeather } from './weather.js';
 
@@ -19,6 +19,8 @@ const state = {
   tasks: [],
   rewards: [],
   claims: [],
+  // Every claim for a locked reward, to count the unlocked claims used.
+  unlockClaims: [],
   // Everyone's habits, for the Parents dialog.
   allHabits: [],
   pendingTasks: [],
@@ -42,6 +44,9 @@ const state = {
 
 let source;
 let unsubs = [];
+// The listener for locked rewards' claims, and which rewards it covers.
+let unlockUnsub = null;
+let unlockKey = null;
 let focusUnsubs = [];
 let toastTimer = null;
 let shell = null;
@@ -69,6 +74,22 @@ function onDataError(err) {
 function stopListeners() {
   unsubs.forEach(u => u());
   unsubs = [];
+  if (unlockUnsub) unlockUnsub();
+  unlockUnsub = null;
+  unlockKey = null;
+}
+
+// Follows the claims of whichever rewards are locked behind habits.
+function syncUnlockClaims() {
+  const ids = state.rewards.filter(r => r.unlock).map(r => r.id).sort();
+  const key = ids.join(',');
+  if (key === unlockKey) return;
+  if (unlockUnsub) unlockUnsub();
+  unlockKey = key;
+  unlockUnsub = source.watchRewardClaims(ids, list => {
+    state.unlockClaims = list;
+    render();
+  }, onDataError);
 }
 
 // keepData shows what's already on screen while fresh data loads, so a
@@ -99,6 +120,7 @@ function startListeners({ keepData = false } = {}) {
   unsubs.push(source.watchRewards(list => {
     state.rewards = list;
     state.loading.rewards = false;
+    syncUnlockClaims();
     render();
   }, onDataError));
   unsubs.push(source.watchPendingTasks(list => {
@@ -267,6 +289,11 @@ async function handleAction(el) {
     const reward = state.rewards.find(r => r.id === id);
     const person = personById(state.claimer) || state.people[0];
     if (!reward || !person) return;
+    // A locked reward needs an unlocked claim left.
+    if (reward.unlock) {
+      const lock = unlockStatus(reward, person, state.allHabits, state.unlockClaims);
+      if (lock && lock.left < 1) return;
+    }
     const type = rewardType(reward);
     if (type === 'flexible') {
       if (person.points <= 0) return;
@@ -371,6 +398,13 @@ async function handleAction(el) {
     const stars = `${n} ${n === 1 ? 'star' : 'stars'}`;
     state.parents.log = [`${person.name}: ${habit.name} ${done ? 'checked' : 'unchecked'} for ${fmt.weekday(date)}, ${done ? '+' : '−'}${stars}`, ...state.parents.log].slice(0, 4);
     return save(change);
+  }
+  if (action === 'remove-reward' && state.parents.unlocked) {
+    const reward = state.rewards.find(r => r.id === id);
+    if (!reward || !reward.active) return;
+    if (!confirm(`Remove “${reward.title}” from the rewards?`)) return;
+    state.parents.log = [`Removed reward: ${reward.title}`, ...state.parents.log].slice(0, 4);
+    return save({ rewardRemove: { id } }, `Removed “${reward.title}”.`);
   }
   if (action === 'decide' && state.parents.unlocked) {
     const claim = state.claims.find(c => c.id === id);
@@ -479,6 +513,7 @@ function mainHtml(route) {
   if (route.name === 'rewards') {
     return banner + renderRewards({
       people: state.people, rewards: state.rewards, claims: state.claims,
+      unlockClaims: state.unlockClaims, habits: state.allHabits,
       claimer: state.claimer, claimQty: state.claimQty, loading: state.loading
     });
   }
@@ -526,7 +561,7 @@ function render() {
       s.overlay.innerHTML = '<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-label="Parent controls"></div></div>';
     }
     setHtml(s.overlay.querySelector('.dialog'),
-      renderParents({ ...state.parents, people: state.people, claims: state.claims, allHabits: state.allHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash }));
+      renderParents({ ...state.parents, people: state.people, claims: state.claims, rewards: state.rewards, allHabits: state.allHabits, pendingTasks: state.pendingTasks, hasPin: !!state.parentPin.pinHash }));
   } else if (s.overlay.firstElementChild) {
     s.overlay.innerHTML = '';
   }
