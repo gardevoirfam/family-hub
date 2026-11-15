@@ -49,6 +49,24 @@ const toTask = d => {
 
 // Tasks a parent swiped away keep their document (so the Claude task doesn't
 // make them again) but are hidden everywhere in the app.
+function claimFrom(d) {
+  const x = d.data({ serverTimestamps: 'estimate' });
+  return {
+    id: d.id,
+    personId: x.personId || '',
+    rewardId: x.rewardId || '',
+    title: x.title || '',
+    cost: Number(x.cost) || 0,
+    type: x.type || 'fixed',
+    quantity: Number(x.quantity) || 1,
+    each: Number(x.each) || 0,
+    unit: x.unit || '',
+    unitMinutes: Number(x.unitMinutes) || 0,
+    status: x.status || 'pending',
+    createdAt: toDate(x.createdAt)
+  };
+}
+
 const liveTasks = snap => snap.docs.map(toTask).filter(t => !t.removedAt);
 
 const toDate = v => (v && typeof v.toDate === 'function') ? v.toDate() : (v ? new Date(v) : null);
@@ -219,6 +237,7 @@ export const source = {
           order: Number.isFinite(x.order) ? x.order : 999,
           weekly: x.weekly === true,
           keptBy: Array.isArray(x.keptBy) ? x.keptBy : [],
+          unlock: x.unlock && Array.isArray(x.unlock.habits) ? x.unlock : null,
           active: x.active !== false
         };
       }));
@@ -234,29 +253,21 @@ export const source = {
     };
     const parts = {};
     const unsubs = Object.entries(queries).map(([key, q]) => fs.onSnapshot(q, snap => {
-      parts[key] = snap.docs.map(d => {
-        const x = d.data({ serverTimestamps: 'estimate' });
-        return {
-          id: d.id,
-          personId: x.personId || '',
-          rewardId: x.rewardId || '',
-          title: x.title || '',
-          cost: Number(x.cost) || 0,
-          type: x.type || 'fixed',
-          quantity: Number(x.quantity) || 1,
-          each: Number(x.each) || 0,
-          unit: x.unit || '',
-          unitMinutes: Number(x.unitMinutes) || 0,
-          status: x.status || 'pending',
-          createdAt: toDate(x.createdAt)
-        };
-      });
+      parts[key] = snap.docs.map(claimFrom);
       if (Object.keys(parts).length < 2) return;
       const byId = new Map();
       [...parts.recent, ...parts.pending].forEach(c => byId.set(c.id, c));
       cb([...byId.values()]);
     }, onError));
     return () => unsubs.forEach(u => u());
+  },
+
+  // Every claim ever made for the given rewards (the locked ones), to count
+  // how many unlocked claims each person has used.
+  watchRewardClaims(rewardIds, cb, onError) {
+    if (!rewardIds.length) { cb([]); return () => {}; }
+    const q = fs.query(fs.collection(db, 'claims'), fs.where('rewardId', 'in', rewardIds.slice(0, 30)));
+    return fs.onSnapshot(q, snap => cb(snap.docs.map(claimFrom)), onError);
   },
 
   // The parent PIN (stored as a salted hash), set by the Claude task.
@@ -299,8 +310,10 @@ export const source = {
   // Applies one check-off as a single batch: the task or habit, the person's
   // points and streak, and the matching pointsLog entries. A batch (rather than
   // a transaction) still works offline and syncs when Wi-Fi returns.
-  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate, rewardKeep }) {
+  async commit({ task, tasks, habit, person, people, logs, claimCreate, claimUpdate, rewardKeep, rewardRemove }) {
     const batch = fs.writeBatch(db);
+    // A parent removed a reward: it is hidden (active false), not deleted.
+    if (rewardRemove) batch.update(fs.doc(db, 'rewards', rewardRemove.id), { active: false });
     // Who wants to keep a weekly reward; the Monday rotation makes it permanent.
     if (rewardKeep) batch.update(fs.doc(db, 'rewards', rewardKeep.id), { keptBy: rewardKeep.keptBy });
     if (claimCreate) {

@@ -1,5 +1,5 @@
 import { esc, avatar, icons } from '../ui.js';
-import { rewardType, unitAmount, claimLabel, maxUnits } from '../points.js';
+import { rewardType, unitAmount, claimLabel, maxUnits, unlockStatus } from '../points.js';
 
 function claimStatus(c) {
   const pts = n => `${n} ${n === 1 ? 'star' : 'stars'}`;
@@ -20,7 +20,21 @@ function keepRow(r, who, names) {
       </div>`;
 }
 
-function card(r, who, qty, names) {
+// What a locked reward needs this week, ticked off as each goal is met.
+function unlockRows(lock) {
+  return `
+      <div class="unlock">
+        <div class="unlock-head">Unlock it each week (Monday to Sunday):</div>
+        ${lock.goals.map(g => `
+        <div class="unlock-goal${g.met ? ' met' : ''}">
+          <span class="unlock-mark" aria-hidden="true">${g.met ? '✓' : ''}</span>
+          <span class="unlock-label">${esc(g.label)}${g.missing ? ' (not set up)' : ''}</span>
+          <b>${Math.min(g.have, g.need)} of ${g.need}</b>${g.waiting > 0 ? `<span class="unlock-wait">${g.waiting} waiting for OK</span>` : ''}
+        </div>`).join('')}
+      </div>`;
+}
+
+function card(r, who, qty, names, lock) {
   const type = rewardType(r);
   const btn = (ok, label) => `
     <button type="button" class="reward-btn" data-action="claim" data-id="${esc(r.id)}" ${ok ? '' : 'disabled'}
@@ -50,21 +64,34 @@ function card(r, who, qty, names) {
     const ok = who && who.points >= r.cost;
     button = btn(ok, !who ? 'Pick someone' : ok ? `Claim for ${esc(who.name)}` : `Need ${r.cost - who.points} more`);
   }
+  let lockHtml = '';
+  if (lock) {
+    if (lock.left > 0) {
+      lockHtml = `<div class="unlock-ready">🔓 Unlocked! ${lock.left === 1 ? '1 to claim' : `${lock.left} to claim`}</div>`;
+    } else {
+      button = `<button type="button" class="reward-btn" disabled>${lock.metThisWeek ? 'Claimed this week' : `${icons.lock} Locked`}</button>`;
+    }
+    lockHtml += unlockRows(lock);
+  }
   return `
-    <div class="reward${r.weekly ? ' weekly' : ''}">
+    <div class="reward${r.weekly ? ' weekly' : ''}${lock && lock.left < 1 ? ' locked' : ''}">
       <div class="reward-cost">${icons.star}${cost}</div>
       <div class="reward-title">${esc(r.title)}</div>
       <div class="reward-detail">${esc(r.detail)}</div>
+      ${lockHtml}
       ${extra}
       ${button}
       ${r.weekly ? keepRow(r, who, names) : ''}
     </div>`;
 }
 
-export function renderRewards({ people, rewards, claims, claimer, claimQty = {}, loading }) {
+export function renderRewards({ people, rewards, claims, unlockClaims = [], habits = [], claimer, claimQty = {}, loading }) {
   const byId = new Map(people.map(p => [p.id, p]));
   const who = byId.get(claimer) || people[0];
-  const sorted = rewards.filter(r => r.active).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.cost - b.cost || a.title.localeCompare(b.title));
+  // Locked rewards, worked out for whoever is picked; hidden for someone with none of their habits.
+  const locks = new Map();
+  for (const r of rewards) if (r.unlock && who) locks.set(r.id, unlockStatus(r, who, habits, unlockClaims));
+  const sorted = rewards.filter(r => r.active && !(locks.get(r.id) && !locks.get(r.id).applies)).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.cost - b.cost || a.title.localeCompare(b.title));
   const recent = claims.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
 
   const pickers = people.map(p => {
@@ -80,7 +107,7 @@ export function renderRewards({ people, rewards, claims, claimer, claimQty = {},
   const weekly = sorted.filter(r => r.weekly);
   const always = sorted.filter(r => !r.weekly);
   const names = new Map(people.map(p => [p.id, p.name]));
-  const cardsOf = list => list.map(r => card(r, who, claimQty[r.id], names)).join('');
+  const cardsOf = list => list.map(r => card(r, who, claimQty[r.id], names, locks.get(r.id))).join('');
   const heading = (text, note) => `<h2 class="reward-group">${text}${note ? `<span>${note}</span>` : ''}</h2>`;
   const cards = !sorted.length
     ? '<div class="empty" style="grid-column:1/-1">No rewards yet.</div>'

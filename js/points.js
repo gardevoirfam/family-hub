@@ -504,3 +504,68 @@ export function weeklyPoints(logs, today, since, weeks = 4) {
     average: counted.length ? Math.round(counted.reduce((a, b) => a + b, 0) / counted.length) : null
   };
 }
+
+// ---- Locked rewards --------------------------------------------------------
+//
+// A reward with `unlock` is earned week by week. Each Monday-to-Sunday week
+// (from `unlock.since`) in which a person meets every habit goal in
+// `unlock.habits` earns `unlock.perWeek` claims (default 1). Unused claims
+// carry over; a claim that is not declined uses one up. Each goal names a
+// habit by the part of its id after the person (`homework` matches
+// `evelyn-homework`) and how many approved ticks it needs that week: a number,
+// or "goal" for the habit's own weekly goal.
+
+function parseDay(key) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : null;
+}
+
+// How many ticks a goal needs.
+function unlockNeed(goal, habit) {
+  if (goal.times === 'goal') return habit ? habitGoal(habit) : 1;
+  return Math.max(1, Number(goal.times) || 1);
+}
+
+// The person's habit for one goal, if they have it.
+function unlockHabit(goal, person, habits) {
+  return habits.find(h => h.personId === person.id && (h.id === `${person.id}-${goal.habit}` || h.id === goal.habit));
+}
+
+// Whether a week starting `monday` met every goal.
+function unlockWeekMet(reward, person, habits, monday) {
+  return reward.unlock.habits.every(g => {
+    const h = unlockHabit(g, person, habits);
+    return h && weekCount(h, monday, { approvedOnly: true }) >= unlockNeed(g, h);
+  });
+}
+
+// Where a person stands with a locked reward, or null if it has no lock.
+// `applies` is false for someone with none of its habits (it is hidden for them).
+export function unlockStatus(reward, person, habits, claims, today = new Date()) {
+  const u = reward.unlock;
+  if (!u || !Array.isArray(u.habits) || !u.habits.length || !person) return null;
+  const mine = habits.filter(h => h.personId === person.id);
+  const thisWeek = weekStart(today);
+  const goals = u.habits.map(g => {
+    const h = unlockHabit(g, person, mine);
+    const need = unlockNeed(g, h);
+    const have = h ? weekCount(h, thisWeek, { approvedOnly: true }) : 0;
+    const waiting = h ? weekCount(h, thisWeek) - have : 0;
+    return { label: g.label || (h ? h.name : g.habit), need, have, waiting, met: !!h && have >= need, missing: !h };
+  });
+  const perWeek = Math.max(1, Number(u.perWeek) || 1);
+  const since = weekStart(parseDay(u.since) || thisWeek);
+  let earned = 0;
+  for (let m = since; m <= thisWeek; m = addDays(m, 7)) {
+    if (unlockWeekMet(reward, person, mine, m)) earned += perWeek;
+  }
+  const used = claims.filter(c => c.rewardId === reward.id && c.personId === person.id && c.status !== 'denied').length;
+  return {
+    applies: goals.some(g => !g.missing),
+    goals,
+    metThisWeek: goals.every(g => g.met),
+    earned,
+    used,
+    left: Math.max(0, earned - used)
+  };
+}

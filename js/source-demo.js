@@ -67,11 +67,11 @@ tasks.forEach(t => {
 // Habit days for the past week, relative to today (0 = today, 1 = yesterday...).
 const pastDays = offsets => Object.fromEntries(offsets.map(n => [dayKey(addDays(startOfDay(), -n)), true]));
 const habits = [
-  { id: 'h1', personId: 'maya', name: 'Read 20 minutes', order: 1, points: 1, bonus: 2, days: pastDays([1, 2, 3, 5, 6]) },
-  { id: 'h2', personId: 'maya', name: 'Practice piano', order: 2, points: 2, perWeek: 5, bonus: 4, days: pastDays([1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) },
+  { id: 'maya-reading', personId: 'maya', name: 'Read 20 minutes', order: 1, points: 1, bonus: 2, days: pastDays([1, 2, 3, 5, 6]) },
+  { id: 'maya-piano', personId: 'maya', name: 'Practice piano', order: 2, points: 2, perWeek: 5, bonus: 4, days: pastDays([1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) },
   { id: 'h3', personId: 'maya', name: 'Brush teeth at night', order: 3, days: pastDays([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) },
   { id: 'h4', personId: 'leo', name: 'Brush teeth', order: 1, days: pastDays([1, 2, 3, 4, 5, 6]) },
-  { id: 'h5', personId: 'leo', name: 'Read with a grown-up', order: 2, days: pastDays([1, 2, 3, 4, 5, 6]) },
+  { id: 'leo-reading', personId: 'leo', name: 'Read with a grown-up', order: 2, days: pastDays([1, 2, 3, 4, 5, 6]) },
   { id: 'h6', personId: 'leo', name: 'Shoes by the door', order: 3, days: pastDays([1, 2, 3, 4, 5, 6]) },
   { id: 'h7', personId: 'mom', name: 'Walk 30 minutes', order: 1, perWeek: 4, days: pastDays([1, 3]) },
   { id: 'h9', personId: 'maya', name: 'Clean room', order: 4, points: 3, perWeek: 1, weekdays: ['fri', 'sat', 'sun'], needsApproval: true, days: {} },
@@ -81,6 +81,9 @@ const habits = [
 const rewards = [
   { id: 'r1', title: 'Screen time', detail: 'Tablet, TV or games.', type: 'perUnit', cost: 1, unit: '15 minutes', unitMinutes: 15, active: true },
   { id: 'r7', title: 'Pokémon pack', detail: 'A parent sets the stars.', type: 'flexible', active: true },
+  { id: 'r8', title: 'Pokémon pack (half price)', detail: 'A parent sets the stars.', type: 'flexible', active: true, order: 1,
+    unlock: { since: dayKey(addDays(startOfDay(), -21)), habits: [{ habit: 'piano', times: 2, label: 'Piano' }, { habit: 'reading', times: 4, label: 'Reading' }] } },
+  { id: 'wk-caramel-apples', title: 'Make caramel apples', detail: 'Kept from a weekly pick.', cost: 40, active: true },
   { id: 'r2', title: "Pick what's for dinner", detail: 'Any night this week.', cost: 75, active: true },
   { id: 'r3', title: 'Stay up 30 minutes late', detail: 'Friday or Saturday night.', cost: 100, active: true },
   { id: 'r4', title: 'Choose movie night', detail: 'You pick the movie and the snack.', cost: 120, active: true },
@@ -166,6 +169,7 @@ export const source = {
   watchAllHabits(cb) { return watch(() => cb(copy(habits))); },
   watchRewards(cb) { return watch(() => cb(rewards.map(r => ({ cost: 0, type: 'fixed', order: 999, keptBy: [], ...r })))); },
   watchClaims(cb) { return watch(() => cb(claims.map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
+  watchRewardClaims(ids, cb) { return watch(() => cb(claims.filter(c => ids.includes(c.rewardId)).map(c => ({ type: 'fixed', quantity: 1, ...c })))); },
   watchParentSettings(cb) {
     hashPin(DEMO_PIN, parentSettings.pinSalt).then(pinHash => cb({ ...parentSettings, pinHash }));
     return () => {};
@@ -174,7 +178,8 @@ export const source = {
   watchPointsLog(from, cb) {
     return watch(() => cb({ first: pointsLog[0].at, entries: pointsLog.filter(e => e.at >= from).map(e => ({ ...e })) }));
   },
-  async commit({ task, tasks: changedTasks, habit, person, people: changedPeople, logs, claimCreate, claimUpdate, rewardKeep }) {
+  async commit({ task, tasks: changedTasks, habit, person, people: changedPeople, logs, claimCreate, claimUpdate, rewardKeep, rewardRemove }) {
+    if (rewardRemove) rewards.find(r => r.id === rewardRemove.id).active = false;
     if (rewardKeep) rewards.find(r => r.id === rewardKeep.id).keptBy = rewardKeep.keptBy.slice();
     if (claimCreate) claims.unshift({ id: 'c' + Date.now(), ...claimCreate, status: 'pending', createdAt: new Date() });
     if (claimUpdate) {

@@ -620,6 +620,34 @@ def check_rewards(rewards):
         for k in ('unitMinutes', 'maxQty', 'order'):
             if k in r and not (isinstance(r[k], int) and r[k] >= 0):
                 problems.append(f'{name}: {k} must be a whole number')
+        if 'unlock' in r:
+            problems += [f'{name}: {p}' for p in check_unlock(r['unlock'])]
+    return problems
+
+
+def check_unlock(u):
+    """A locked reward: {since: "YYYY-MM-DD", perWeek: 1, habits: [{habit, times, label}]}."""
+    if not isinstance(u, dict):
+        return ['unlock must be an object']
+    problems = []
+    try:
+        dt.date.fromisoformat(str(u.get('since')))
+    except ValueError:
+        problems.append('unlock.since must be a date like 2026-11-09 (the first week that counts)')
+    if 'perWeek' in u and not (isinstance(u['perWeek'], int) and u['perWeek'] >= 1):
+        problems.append('unlock.perWeek must be a whole number from 1')
+    goals = u.get('habits')
+    if not (isinstance(goals, list) and goals):
+        return problems + ['unlock.habits must be a non-empty list']
+    for g in goals:
+        if not (isinstance(g, dict) and re.fullmatch(r'[a-z0-9-]+', str(g.get('habit') or ''))):
+            problems.append('each unlock habit needs habit: the part of the habit id after the person, e.g. "piano"')
+            continue
+        t = g.get('times')
+        if not (t == 'goal' or (isinstance(t, int) and t >= 1)):
+            problems.append(f'unlock habit {g["habit"]}: times must be "goal" or a whole number from 1')
+        if 'label' in g and not isinstance(g['label'], str):
+            problems.append(f'unlock habit {g["habit"]}: label must be text')
     return problems
 
 
@@ -634,7 +662,7 @@ def cmd_rewards(hub, args):
     problems = check_rewards(rewards)
     if problems:
         sys.exit('Not saved. Problems:\n  ' + '\n  '.join(problems))
-    keys = ('title', 'detail', 'type', 'cost', 'unit', 'unitMinutes', 'maxQty', 'order', 'weekly', 'keptBy')
+    keys = ('title', 'detail', 'type', 'cost', 'unit', 'unitMinutes', 'maxQty', 'order', 'weekly', 'keptBy', 'unlock')
     wanted = {}
     for r in rewards:
         data = {k: r[k] for k in keys if k in r}
